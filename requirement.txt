@@ -1,0 +1,13 @@
+beautifulsoup4==4.12.3
+requests==2.32.3
+python-dotenv==1.0.1
+pysrt==1.1.2
+openai==1.35.13
+google-generativeai==0.8.0
+pydub==0.25.1
+ffmpeg-python==0.2.0
+
+# 根据你的选择，选择性注释下面内容：
+openai-whisper==20231117 # 如果你使用本地Whisper进行转录
+faster-whisper==1.0.1   # 更快的Whisper实现，推荐
+assemblyai==0.21.0      # 如果你使用AssemblyAI进行转录
