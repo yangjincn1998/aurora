@@ -1,304 +1,216 @@
-# 极光字幕 (AURORA, Automated Universal Resources Orchestrator of Rich AV)
+# 极光字幕 (AURORA, Automated Universal Resources Orchestrator of Rich Av) - 全自动AV媒体库管理工具
 
-## 概述
+![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-这是一个强大的自动化工具，旨在帮助您处理 AV 影片，自动提取音频、转录日文字幕、将其翻译成中文，并将翻译后的影片元数据（包括标题、发行日期、演员、导演和类别）嵌入到最终生成的双语字幕文件（`.ass` 和 `.srt`）的开头。
+**Aurora** 是一个强大的自动化工具，旨在将您杂乱的AV影片收藏，转变为一个带有高质量双语字幕、信息丰富的标准化媒体库。
 
-本项目利用多线程处理和本地缓存机制，极大地提高了效率并减少了重复的 API 调用。
+---
 
-## 主要功能
+# 📖 用户指南 (User Guide)
 
-  * **视频扫描**: 自动识别指定目录下的视频文件。
-  * **AV 番号提取**: 从视频文件名中提取 AV 番号，作为影片的唯一标识符。
-  * **音频提取**: 使用 `FFmpeg` 从视频文件中高效提取音频。
-  * **日文转录**:
-      * 支持 **Whisper (本地)** 和 **AssemblyAI (云服务)** 两种转录服务，您可以根据需求选择。
-      * 将提取的音频转录为日文 `SRT` 字幕文件。
-  * **智能中文翻译**:
-      * 支持 **DeepSeek** 和 **Gemini** 两种大语言模型翻译服务。
-      * **字幕翻译**: 将日文 `SRT` 字幕翻译成中文 `SRT` 字幕，并智能地保留原始 `SRT` 格式。
-      * **元数据翻译**: 自动抓取 JavBus 上的影片元数据（标题、演员、导演、类别等），并将其翻译成中文。
-      * **本地缓存**: 为**演员、导演和类别**创建本地 `JSON` 缓存字典，避免重复调用翻译 `API`，显著降低成本和提高速度。
-  * **双语字幕合并**: 将日文和中文 `SRT` 字幕合并为双语字幕文件（同时生成 `.ass` 和 `.srt` 格式）。
-  * **元数据嵌入**: 将翻译后的影片元数据（如影片标题、发行日期、演员、导演、类别）嵌入到最终生成的双语字幕文件的开头，方便您一目了然地获取影片信息。
-  * **状态管理**: 持久化处理状态，即使程序中断，也能从上次暂停的地方继续处理，避免重复劳动。
-  * **多线程并行处理**: 利用生产者-消费者模型，各阶段（音频提取、转录、切片、翻译、聚合、合并、元数据抓取）并行工作，最大化系统资源利用率。
+本部分面向希望直接使用本工具的用户。
 
-## 实现原理概览
+## ✨ 主要功能
 
-整个流程通过一个基于**多线程和队列**的生产者-消费者模型实现，确保各个处理阶段能够并发高效地运行。
+* **全自动流水线**: 从原始视频文件到生成带特效的双语字幕，全程自动化处理。
+* **智能番号识别**: 采用级联正则匹配策略，能从各种复杂、不规范的文件名中准确提取番号。
+* **多AI服务支持**:
+    * **语音转写**: 支持云端 `AssemblyAI` 和本地 `Whisper` (通过 `faster-whisper` 高性能引擎) 两种模式，并可在云服务失败时自动**熔断**并切换到本地模式。
+    * **文本翻译**: 支持 `Google Gemini` 和 `DeepSeek` 两种大语言模型，并可自动回退。
+* **高质量字幕生成**:
+    * **智能上下文翻译**: 在翻译字幕时，同时注入影片元数据（宏观）和前后对话（微观）作为上下文，极大提升翻译的准确性和流畅度。
+    * **专业级ASS特效**: 自动生成带有动态元数据片头（淡入淡出效果）和分层对话样式（中上日下）的 `.ass` 特效字幕。
+* **健壮的状态管理**: 所有处理进度都会被记录，程序可随时中断和续行。通过**文件系统同步**机制，能智能处理用户手动的删除和移动操作。
+* **媒体库整理与索引**: 自动将成品归档到以番号命名的目录中，并创建按演员、类别、导演分类的快捷方式索引，方便浏览。
+* **高性能并发处理**: 采用“多进程（处理不同影片）+多线程（处理单个影片内部任务）”的二级并发模型，最大化利用系统资源。
 
-1.  **初始化与状态加载**:
-      * `main.py` 启动时，首先加载上次保存的处理状态 (`status.json`)。
-      * `scanner.py` 扫描指定视频目录，识别所有待处理的视频文件并提取 `AV` 番号。
-      * 根据视频文件和当前状态，将待处理任务（例如：待提取音频、待转录、待翻译、待抓取元数据）分配到不同的任务队列中。
-2.  **元数据抓取 (`metadata_crawler_worker`)**:
-      * `movie_crawler.py` 负责从 **JavBus** 网站抓取影片详情页的 `HTML` 内容。
-      * 它解析 `HTML` 提取影片的日文元数据（标题、发行日期、演员、导演、类别）。
-      * 在翻译元数据时，它会优先查询本地的 `JSON` **缓存文件** (`actors_cache.json`, `genres_cache.json`, `directors_cache.json`)。如果缓存中没有，则调用 `text_translator.py` 进行翻译，并将原文和译文对存入缓存，以减少 `API` 调用。
-      * 抓取和翻译后的元数据会存储在 `status.json` 中。
-3.  **音频提取 (`audio_extract_worker`)**:
-      * `preprocessor.py` 使用 `FFmpeg` 工具从视频文件中高效提取音频（例如 `.mp3` 格式）。
-      * 提取的音频文件会被保存到指定的音频目录。
-4.  **日文转录 (`transcription_worker`)**:
-      * `transformer.py` 负责将音频文件转录成日文 `SRT` 字幕。
-      * 它支持**本地 Whisper 模型**（通过 `openai-whisper` 或 `faster-whisper` 库）和**云端 AssemblyAI 服务**。您可以配置优先使用的服务，并在失败时回退。
-      * 转录成功后，会删除中间音频文件以节省存储空间。
-5.  **字幕切片与翻译 (`srt_slicer_worker`, `translation_slice_worker`, `translated_srt_aggregator_worker`)**:
-      * `srt_slicer_worker` 将大型日文 `SRT` 字幕文件分割成小块（切片），以便更有效地发送给翻译 `API`。
-      * `translation_slice_worker` 并行调用 `text_translator.py` 模块，将每个日文字幕切片翻译成中文。
-      * `text_translator.py` 利用 **DeepSeek** 或 **Gemini** 大语言模型进行翻译。为了确保字幕格式的完整性，会使用特定的提示词引导模型返回 `SRT` 格式。
-      * `translated_srt_aggregator_worker` 负责收集所有翻译后的字幕切片，并将它们重新组合成一个完整的中文 `SRT` 字幕文件。
-6.  **双语合并与元数据嵌入 (`bilingual_worker`)**:
-      * `bilingual_combiner.py` 接收日文和中文 `SRT` 字幕。
-      * 它将这两个字幕合并为双语字幕，并同时生成 `.ass` 和 `.srt` 两种格式的文件。
-      * **最关键的是**，它会读取 `status.json` 中保存的已翻译影片元数据，并将其格式化后**插入到生成的 `.ass` 和 `.srt` 字幕文件的最开头**。
+## 🚀 快速上手
 
-这个流程中的每一步都独立且并发地运行，通过队列传递数据，并通过 `status.json` 记录进度，确保高效率和可靠性。
+对于有经验的用户，只需四步即可运行：
 
------
+1.  **安装环境**: 确保您已安装 `Python 3.10+` 和 `FFmpeg`。
+2.  **安装依赖**: 在项目目录下运行 `pip install -r requirements.txt`。
+3.  **配置**: 复制 `example.env` 为 `.env`，并填入您的**视频源目录**和**媒体库目录**路径，以及至少一个API Key。
+4.  **运行**: `python main.py process`
 
-## 依赖安装
+## 📋 环境设置 (Environment Setup)
 
-在运行项目之前，您需要安装以下依赖：
+#### 1. 安装 Python
+本程序需要 **Python 3.10** 或更高版本。
+-   请从 [Python官方网站](https://www.python.org/downloads/) 下载并安装。
+-   在安装时，请务必勾选 **"Add Python to PATH"** 选项。
 
-### 1. Python 依赖
+#### 2. 安装 FFmpeg (关键外部依赖)
+FFmpeg 是处理音视频的开源工具，是本程序**提取音频**功能的核心。
+-   请访问 [FFmpeg 官网](https://ffmpeg.org/download.html) 下载适用于您操作系统的版本。
+-   **重要**: 解压后，请务必将其 `bin` 目录的完整路径，添加到您操作系统的**环境变量 `Path`** 中。
+-   验证安装: 打开一个新的命令行窗口，输入 `ffmpeg -version`，如果能看到版本信息，说明安装成功。
 
-推荐使用 `pip` 安装。请确保您的 Python 版本为 3.8 或更高。
+#### 3. 下载项目
+使用 Git 克隆本项目到您的本地电脑：
+```bash
+git clone [https://github.com/yangjincn1998/aurora.git](https://github.com/yangjincn1998/aurora.git)
+cd aurora
+````
+
+#### 4\. 创建虚拟环境与安装依赖
+
+为了避免与您系统上其他Python项目产生冲突，强烈建议使用虚拟环境。
+
+**a) 创建并激活环境 (推荐使用 venv):**
+
+```bash
+# 在项目根目录下创建虚拟环境
+python -m venv .venv
+
+# 激活虚拟环境
+# Windows:
+.venv\Scripts\activate
+# macOS / Linux:
+source .venv/bin/activate
+```
+
+**b) 安装项目依赖:**
+在激活虚拟环境后，运行以下命令来安装所有必需的 Python 库：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-如果 `requirements.txt` 文件不存在，您可以手动创建或安装以下核心库：
+## ⚙️ 配置 (Configuration)
 
-```bash
-pip install beautifulsoup4 requests python-dotenv pysrt openai google-generativeai pydub ffmpeg-python
-# 对于 Whisper (本地转录，如果使用):
-pip install openai-whisper  # 或者 faster-whisper (通常更快)
-# pip install faster-whisper
-# 对于 AssemblyAI (云转录，如果使用):
-# pip install assemblyai
-```
+在首次运行前，您需要配置程序的行为和您的API密钥。
 
-### 2. FFmpeg
+1.  在项目根目录下，找到 `example.env` 文件。
 
-本项目使用 `FFmpeg` 进行视频音频的提取。您需要根据您的操作系统安装 `FFmpeg`，并确保其可执行文件在系统的 `PATH` 环境变量中。
+2.  **复制** 并 **重命名** 该文件为 `.env`。
 
-  * **Windows**:
-    1.  访问 [FFmpeg 官网](https://ffmpeg.org/download.html) 下载 Windows 版本。
-    2.  解压下载的压缩包到您喜欢的位置（例如 `C:\ffmpeg`）。
-    3.  将 `FFmpeg` 的 `bin` 目录（例如 `C:\ffmpeg\bin`）添加到系统的 `PATH` 环境变量中。
-    4.  打开新的命令行窗口，输入 `ffmpeg -version` 检查是否安装成功。
-  * **macOS**:
-    使用 Homebrew 安装：
-    ```zsh
-    brew install ffmpeg
-    ```
-  * **Linux (Ubuntu/Debian)**:
+3.  使用文本编辑器打开 `.env` 文件，根据您的实际情况修改：
+
+      * `VIDEO_SOURCE_DIRECTORY`: **【必需】** 您存放原始、杂乱视频文件的目录路径。程序将扫描这里。
+
+          * 示例: `VIDEO_SOURCE_DIRECTORY=D:/Downloads/NewVideos`
+
+      * `VIDEO_LIBRARY_DIRECTORY`: **【必需】** 用于存放所有处理完成、已归档影片的最终媒体库路径。建议设置一个空目录。
+
+          * 示例: `VIDEO_LIBRARY_DIRECTORY=D:/MyMedia/AV_Library`
+
+      * **API 密钥**: 根据您拥有的服务，填写对应的API Key。
+
+          * `GEMINI_API_KEY`: Google Gemini API 密钥，拥有慷慨的免费额度，**推荐配置**。
+          * `DEEPSEEK_API_KEY`: DeepSeek API 密钥。
+          * `ASSEMBLYAI_API_KEY`: AssemblyAI API 密钥，用于云端语音转写，拥有免费额度。
+
+## ▶️ 运行程序 (Running the Program)
+
+请确保您的虚拟环境已激活。所有命令都在项目根目录下运行。
+
+#### 主任务指令 (必需)
+
+  * `process`: **(最常用)** 执行完整的自动化处理流水线。
     ```bash
-    sudo apt update
-    sudo apt install ffmpeg
+    python main.py process
     ```
-
------
-
-## 配置 `.env` 文件
-
-在项目根目录下创建一个名为 `.env` 的文件，并按以下格式配置您的目录路径和 `API` 密钥：
-
-```dotenv
-# --- 目录配置 ---
-# 存放原始视频文件的目录
-VIDEO_DIRECTORY=./videos
-
-# 存放提取的音频文件的目录
-AUDIO_DIRECTORY=./audios
-
-# 存放日文SRT字幕文件的目录 (转录结果)
-JAPSUB_DIRECTORY=./subtitles/japanese
-
-# 存放中文SRT字幕文件的目录 (翻译结果)
-SCHSUB_DIRECTORY=./subtitles/chinese
-
-# 存放最终双语字幕文件的目录 (.ass 和 .srt)
-SCH_JP_DIRECTORY=./subtitles/bilingual
-
-# --- API 密钥配置 (至少配置您使用的服务) ---
-# DeepSeek API Key (从 DeepSeek 官网获取，不免费)
-DEEPSEEK_API_KEY="YOUR_DEEPSEEK_API_KEY"
-
-# Gemini API Key (从 Google AI Studio 获取，每月有免费额度)
-GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-
-# AssemblyAI API Key (如果您选择使用 AssemblyAI 作为转录服务，每月有免费额度)
-ASSEMBLYAI_API_KEY="YOUR_ASSEMBLYAI_API_KEY"
-```
-
-**重要提示**:
-
-  * 请将 `YOUR_DEEPSEEK_API_KEY`, `YOUR_GEMINI_API_KEY` 和 `YOUR_ASSEMBLYAI_API_KEY` 替换为您的实际 `API` 密钥。
-  * 根据您使用的服务，相应地配置密钥。如果您只使用 `Gemini` 进行翻译，可以不配置 `DeepSeek` 的密钥，反之亦然。
-
------
-
-## 如何运行
-
-在配置好 `.env` 文件和安装所有依赖后，您可以通过以下命令运行项目：
-
-```bash
-python main.py
-```
-
-### `main.py` 启动参数可选项
-
-您可以通过 `--transcriber` 参数指定首选的转录服务：
-
-  * **使用本地 Whisper 进行转录 (默认)**
+  * `organize`: 将所有已完成处理的影片进行归档和索引。
     ```bash
-    python main.py --transcriber whisper
+    python main.py organize
     ```
-  * **使用 AssemblyAI 进行转录 (需要配置 `ASSEMBLYAI_API_KEY`)**
+  * `cleanup`: **(安全模式)** 扫描源目录，并**仅报告**可以被安全删除的空目录。
     ```bash
-    python main.py --transcriber assemblyai
+    python main.py cleanup
+    ```
+  * `reconcile`: 仅执行状态同步，用于在您手动移动或删除文件后，校准 `status.json`。
+    ```bash
+    python main.py reconcile
     ```
 
-### Windows 一键启动脚本
+#### 可选参数 (可选)
 
-`run.bat` 和 `run_organizer.bat` 默认会自动激活名为 `whisper` 的 conda 环境后再运行主程序或 organizer。这是开发者的个人习惯，**试用前请根据你自己的环境修改这两个 bat 文件中的 `ENV_NAME` 变量为你实际的环境名**，否则会激活失败。
-
-如果你没有使用 conda 环境，也可以直接用 `python main.py` 或 `python av_organizer_pro.py` 启动。
-
----
-
-### Python 环境配置教程
-
-#### 1. 推荐使用 Anaconda/Miniconda
-
-- [Anaconda 官网下载](https://www.anaconda.com/products/distribution)
-- [Miniconda 官网下载](https://docs.conda.io/en/latest/miniconda.html)
-
-**安装步骤：**
-1. 下载并安装 Anaconda 或 Miniconda。
-2. 打开 Anaconda Prompt（或命令行），创建新环境（如 aurora_env）：
-   ```
-   conda create -n aurora_env python=3.10 -y
-   conda activate aurora_env
-   ```
-3. 安装依赖：
-   ```
-   pip install -r requirements.txt
-   ```
-
-#### 2. 也可使用 Python 自带 venv 虚拟环境
-
-**步骤：**
-1. 安装 Python（建议 3.8 及以上）。
-2. 在项目根目录下创建虚拟环境：
-   ```
-   python -m venv aurora_venv
-   ```
-3. 激活虚拟环境：
-   - Windows:
-     ```
-     aurora_venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```
-     source aurora_venv/bin/activate
-     ```
-4. 安装依赖：
-   ```
-   pip install -r requirements.txt
-   ```
-
----
-
-### 第一次启动流程 (Windows 用户)
-
-为了确保环境隔离和依赖管理，强烈建议使用虚拟环境运行本项目。
-
-1.  **创建并激活虚拟环境 (Conda)**:
-    打开命令行（如 Anaconda Prompt 或 PowerShell），执行以下命令：
-
-    ```batch
-    @echo off
-    echo 正在创建名为 'aurora_env' 的 Conda 虚拟环境...
-    conda create -n aurora_env python=3.12 -y
-
-    echo 正在激活虚拟环境 'aurora_env'...
-    call conda activate aurora_env
-
-    echo 正在安装项目依赖...
-    pip install -r requirements.txt
-
-    echo 虚拟环境设置完成。
-    echo 您现在可以运行项目了：python main.py --transcriber whisper
-    echo 或者：python main.py --transcriber assemblyai
-    pause
+  * `--force`: 强制重新执行所有任务，即使它们之前已经完成。
+    ```bash
+    python main.py process --force
+    ```
+  * `--execute`: **【危险】** 与 `cleanup` 任务配合使用，在报告后**真实地执行删除**操作。
+    ```bash
+    # 强烈建议先运行一次不带 --execute 的 cleanup
+    python main.py cleanup --execute
     ```
 
-    将上述内容保存为 `setup_env.bat` 文件（例如在项目根目录），然后双击执行即可。
+#### 推荐工作流程
 
-2.  **运行项目**:
-    在 `setup_env.bat` 脚本执行完毕后，您会看到提示。此时，您可以在同一个命令行窗口中直接运行 `main.py`。
+1.  将新下载的影片放入您配置的 `VIDEO_SOURCE_DIRECTORY` 目录。
+2.  运行 `python main.py process`。程序将自动处理所有可处理的任务。您可以随时中断，下次运行会从断点继续。
+3.  当您看到日志显示任务已全部处理完毕后，运行 `python main.py organize` 进行归档和索引。
+4.  （可选）运行 `python main.py cleanup` 查看清理报告，然后运行 `python main.py cleanup --execute` 清理源目录。
 
-### 日志文件
+<!-- end list -->
+# 👨‍💻 开发者与设计理念 (For Developers & Designers)
 
-  * `process.log`: 记录整个处理流程的详细信息，包括任务进度、成功/失败日志等。
-  * `translate.log`: 专门记录翻译模块的日志，方便排查翻译相关的 `API` 调用问题。
+本部分旨在深入阐述 Aurora 项目的架构设计、技术选型以及在开发过程中遇到的关键问题与解决方案。它不仅是代码的说明，更是整个项目从构思到成熟的“心路历程”。
 
------
+## 📐 核心架构原则
 
-## 目录结构 (示例)
+在整个开发过程中，我们始终遵循以下几个核心设计原则，它们是构建这个健壮、可维护系统的基石。
 
-```
-.
-├── main.py
-├── scanner.py
-├── preprocessor.py
-├── transformer.py
-├── text_translator.py
-├── movie_crawler.py
-├── bilingual_combiner.py
-├── status.py
-├── prompt.txt
-├── .env
-├── process.log
-├── translate.log
-├── status.json           # 运行状态持久化文件
-├── videos/               # 存放您的原始视频文件
-│   └── example-123.mp4
-│   └── ...
-├── audios/               # 存放提取的音频文件 (中间产物，处理完后会被删除)
-│   └── example-123.mp3
-│   └── ...
-├── subtitles/
-│   ├── japanese/         # 存放日文SRT字幕文件
-│   │   └── example-123.srt
-│   │   └── ...
-│   ├── chinese/          # 存放中文SRT字幕文件
-│   │   └── example-123.srt
-│   │   └── ...
-│   └── bilingual/        # 存放最终的双语字幕文件 (.ass 和 .srt)
-│       ├── example-123-sch-jap.ass
-│       ├── example-123-sch-jap.srt
-│       └── ...
-└── metadata_cache/       # 存放翻译缓存字典
-    ├── actors_cache.json
-    ├── genres_cache.json
-    └── directors_cache.json
-```
+#### 1. 模块化与职责分离 (Modularity & Separation of Concerns)
+项目被拆分为多个高度专一的模块（`scanner`, `crawler`, `translator` 等）。每个模块只负责一件事情并把它做好。这种设计使得代码易于理解、独立测试和未来扩展。
 
------
+#### 2. “工人/核心”分层模式 ("Worker/Core" Layered Pattern)
+这是我们最重要的架构模式之一。每个处理模块内部都分为两层：
+* **工人层 (Worker Layer)**: 对外暴露的公共接口，负责与外部系统（文件系统、状态管理器）交互、处理流程控制（如幂等性检查）和统一的异常封装。
+* **核心层 (Core Layer)**: 模块的“心脏”，负责纯粹的业务逻辑（如HTML解析、文本翻译、音频处理）。它不依赖于项目的其他部分，易于进行单元测试。
 
-## 注意事项
+#### 3. 中央化状态管理与无状态工人 (Centralized State Management & Stateless Workers)
+为了解决多进程环境下的 `pickle` 错误和状态一致性问题，我们确立了此原则：
+* `StatManager` 作为**唯一**的状态管理者，只在主进程 (`main.py`) 中被实例化和调用。
+* 所有的“工人”函数都是**无状态的**，它们不持有或直接修改全局状态，而是通过函数返回值向主进程报告工作成果，由主进程统一更新状态。
 
-  * **API 额度与费用**: 使用 `DeepSeek`, `Gemini` 或 `AssemblyAI` 等云服务会产生费用。请留意您的 `API` 额度，并合理使用本地缓存机制。
-  * **网络稳定性**: 翻译和元数据抓取依赖于网络连接。请确保网络稳定。
-  * **JavBus 访问**: 频繁的网页抓取可能导致您的 `IP` 被 JavBus 临时或永久封禁。本项目已加入基本的重试和延迟机制，但大规模使用时仍需谨慎，或考虑使用代理。
-  * **HTML 结构变化**: JavBus 网站的 `HTML` 结构可能会更新，这可能导致 `movie_crawler.py` 中的解析逻辑失效。如果遇到元数据抓取失败，可能需要检查并更新 `parse_movie_html` 函数。
-  * **字幕准确性**: 大模型翻译可能存在少量不准确或不自然的表达。
-  * **FFmpeg 问题**: 如果您在音频提取阶段遇到问题，请检查 `FFmpeg` 是否正确安装并配置到 `PATH`。
+#### 4. 面向失败的设计 (Design for Failure)
+我们假设任何一步操作都可能失败，尤其是在涉及网络I/O和外部依赖时。
+* **统一异常接口**: 工人函数只对外抛出 `FatalError` (核心流程中断) 和 `IgnorableError` (辅助流程中断) 两种高级别异常，主调度器只需关心这两种情况。
+* **自动重试与熔断**: 对于网络请求（爬虫、API调用），我们内置了 `tenacity` 自动重试机制。对于云服务（如AssemblyAI），我们设计了“熔断器”，在连续失败后能自动切换到备用方案（本地Whisper）。
 
-感谢您使用本工具！希望它能为您的视频处理工作带来便利。
+#### 5. 用户修改优先 (User Override Principle)
+系统必须尊重用户的干预。
+* **幂等性**: 所有工人函数都具备幂等性，重复执行不会产生副作用。通过检查文件存在性和时间戳，避免覆盖用户可能已经手动修改过的最终产物（如精修过的字幕）。
+* **审查与同步**: 通过独立的 `organize` 和 `cleanup` 工具，系统能学习用户对 `metadata.json` 的修改，并将其同步到全局缓存和其他相关文件中，形成一个智能的反馈闭环。
+
+## 💡 关键技术难题与演进之路
+
+这个项目并非一蹴而就，我们在开发过程中遇到了多个经典的技术挑战。正是解决这些问题的过程，塑造了项目如今的健壮架构。
+
+#### 1. 问题：`pickle` 错误与进程安全
+* **挑战**: 在项目初期，我们尝试将 `StatManager` 对象直接传递给 `ProcessPoolExecutor` 中的子进程，导致了经典的 `TypeError: cannot pickle '_thread.lock' object` 错误，因为锁对象无法跨进程传递。
+* **解决方案**: 我们进行了一次重要的架构重构，确立了**“中央化状态管理与无状态工人”**原则。工人函数不再接收 `StatManager`，而是改为返回一个包含结果的字典。所有状态的更新操作，都集中在 `main.py` 的主进程中，根据工人返回的结果来执行。这彻底解决了 `pickle` 错误，并让系统状态的管理更加安全和清晰。
+
+#### 2. 问题：GPU 独占与服务熔断
+* **挑战**: 本地Whisper转写需要独占GPU资源，多个进程同时调用会导致显存崩溃。同时，如果首选的云服务（AssemblyAI）宕机，所有进程都会反复尝试并超时，浪费大量时间。
+* **解决方案**: 我们引入了 `multiprocessing.Manager` 来创建跨进程共享对象：
+    1.  **`gpu_lock = manager.Lock()`**: 创建一个全局GPU锁，并传递给每个 `transcriber` 工人。工人在调用Whisper前必须获取该锁，确保了任何时候只有一个进程能使用GPU。
+    2.  **`shared_status = manager.dict()`**: 创建一个共享字典作为“熔断器”。当第一个工人发现AssemblyAI失败时，它会立刻改变这个共享字典中的状态。后续所有新任务都会读取这个新状态，直接跳过AssemblyAI，使用备用方案，实现了智能的、快速的故障切换。
+
+#### 3. 问题：流水线“假死”与事件驱动
+* **挑战**: 最初的 `main.py` 调度器是一个“分批处理器”，它在开始时生成所有可执行的任务（例如，所有音频提取），等待它们全部完成后才退出。这导致流程在每个阶段之间都存在“空窗期”，无法实现真正的流水线作业。
+* **解决方案**: 我们将 `main.py` 的主循环重构为一个**“事件驱动”的循环流水线**。主循环在一个 `while True` 中不断地进行“状态诊断 -> 派发任务 -> 处理结果”的循环。当一个任务（如音频提取）完成后，主循环会立刻接收到这个“完成事件”，并马上为**这一个**番号诊断出下一步任务（字幕转写）并提交，而无需等待其他番号。这使得任务能够在不同影片之间以最高效率“接力”下去。
+
+#### 4. 问题：翻译质量的“天花板”
+* **挑战**: 直接将单句字幕发送给LLM翻译，效果往往不佳，缺乏连贯性和准确性。
+* **解决方案**: 我们设计并实现了**“智能上下文增强”**策略：
+    * **宏观上下文**: 将影片的元数据（标题、演员等）动态注入到系统提示中，让LLM了解翻译的背景。
+    * **微观上下文**: 在翻译字幕切片时，采用“滑动窗口”，将上一个切片的原文和译文作为上下文一同发送，让LLM能理解对话的来龙去脉。
+
+## 📂 模块概览
+
+* **`main.py`**: **总调度器**。项目的唯一入口，负责CLI、环境初始化、并发管理和流水线调度。
+* **`config.py`**: **配置中心**。加载 `.env` 和 `prompt.txt`，为整个项目提供统一的配置常量。
+* **`logging_config.py`**: **日志中心**。配置全局的分级日志系统。
+* **`exceptions.py`**: **异常中心**。定义项目中统一的 `FatalError` 和 `IgnorableError`。
+* **`status_manager.py`**: **状态管理器**。封装了所有对 `status.json` 的线程安全读写和同步逻辑，只在主进程中使用。
+* **`scanner.py`**: **扫描器**。负责扫描文件系统，并从文件名中准确识别番号。
+* **`movie_crawler.py`**: **元数据工人**。负责抓取和翻译影片元数据。
+* **`audio_extractor.py`**: **音频提取工人**。负责从视频中提取完整的音轨。
+* **`transcriber.py`**: **音频转写工人**。负责将音频转写为日文SRT，并管理云服务/本地模型的切换。
+* **`text_translator.py`**: **文本翻译工人/引擎**。负责将日文SRT高质量地翻译为中文。
+* **`subtitle_generator.py`**: **字幕生成工人**。负责将翻译稿合并为带特效的专业级双语字幕。
+* **`organizer.py`**: **媒体库管家**。负责最终的成品归档、索引建立和源目录清理。

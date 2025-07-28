@@ -21,8 +21,6 @@ except ImportError:
 from config import VIDEO_LIBRARY_DIRECTORY, INDEX_DIR, BILINGUAL_SUB_DIR, VIDEO_SOURCE_DIRECTORY
 from exceptions import FatalError
 
-# StatManager 不再需要导入
-
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +36,7 @@ def _create_shortcut(target_path: Path, shortcut_path: Path):
 
     # 移除已存在的同名文件或损坏的链接
     if shortcut_path.exists() or shortcut_path.is_symlink():
-        shortcut_path.unlink()
+        shortcut_path.unlink(missing_ok=True)
 
     if sys.platform == "win32" and PYWIN32_AVAILABLE:
         # 在Windows上优先创建 .lnk 快捷方式
@@ -69,7 +67,7 @@ def standardize_library_worker(av_code: str, segment_id: str, original_video_pat
         if not original_video_path.exists():
             raise FileNotFoundError(f"源视频文件不存在: {original_video_path}")
 
-        final_movie_dir = config.VIDEO_LIBRARY_DIRECTORY / av_code
+        final_movie_dir = VIDEO_LIBRARY_DIRECTORY / av_code
         final_movie_dir.mkdir(exist_ok=True)
         final_video_path = final_movie_dir / original_video_path.name
 
@@ -79,70 +77,69 @@ def standardize_library_worker(av_code: str, segment_id: str, original_video_pat
 
         stem = original_video_path.stem
         for sub_ext in ['.srt', '.ass']:
-            bilingual_sub = config.BILINGUAL_SUB_DIR / (stem + sub_ext)
+            bilingual_sub = BILINGUAL_SUB_DIR / (stem + sub_ext)
             if bilingual_sub.exists():
                 shutil.copy2(bilingual_sub, final_movie_dir)
 
         return {'status': 'success', 'av_code': av_code, 'segment_id': segment_id, 'new_path': str(final_video_path)}
-
     except Exception as e:
         raise FatalError(f"归档失败: {e}") from e
 
 
-def build_index_worker(all_status_data: Dict):
-    """
-    【工人函数】根据完整的状态数据构建分类索引。
-    【架构修正】不再接收 stat_manager，而是接收纯数据字典。
-    """
+def build_index_worker(all_status_data: Dict) -> Dict:
+    """【工人函数】根据完整的状态数据构建分类索引。"""
     logger.info("--- 开始构建媒体库分类索引 ---")
-    if INDEX_DIR.exists():
-        logger.info(f"正在清理旧索引目录: {INDEX_DIR}")
-        shutil.rmtree(INDEX_DIR)
+    try:
+        if INDEX_DIR.exists():
+            logger.info(f"正在清理旧索引目录: {INDEX_DIR}")
+            shutil.rmtree(INDEX_DIR)
 
-    category_dirs = {
-        "actors": INDEX_DIR / "演员 (Actors)",
-        "genres": INDEX_DIR / "类别 (Categories)",
-        "director": INDEX_DIR / "导演 (Directors)"
-    }
-    for d in category_dirs.values():
-        d.mkdir(parents=True, exist_ok=True)
+        category_dirs = {
+            "actors": INDEX_DIR / "演员 (Actors)",
+            "genres": INDEX_DIR / "类别 (Categories)",
+            "director": INDEX_DIR / "导演 (Directors)"
+        }
+        for d in category_dirs.values():
+            d.mkdir(parents=True, exist_ok=True)
 
-    shortcut_count = 0
-    for av_code, data in all_status_data.items():
-        metadata_path = VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json"
-        if not metadata_path.exists():
-            continue
+        # 【修正】在这里初始化 shortcut_count 变量
+        shortcut_count = 0
 
-        with open(metadata_path, 'r', encoding='utf-8') as f:
-            metadata = json.load(f)
-
-        for segment in data.get('segments', {}).values():
-            video_path = Path(segment['full_path'])
-            if not video_path.exists() or not video_path.is_file():
+        for av_code, data in all_status_data.items():
+            metadata_path = VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json"
+            if not metadata_path.exists():
                 continue
 
-            shortcut_name_base = f"{video_path.stem} - {metadata.get('title_zh', av_code)}"
-            shortcut_name = _sanitize_for_path(shortcut_name_base)
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
 
-            # 创建导演索引
-            director = metadata.get('director', {}).get('name_zh', '未知导演')
-            _create_shortcut(video_path, category_dirs['director'] / _sanitize_for_path(director) / shortcut_name)
-            shortcut_count += 1
+            for segment in data.get('segments', {}).values():
+                video_path = Path(segment['full_path'])
+                if not video_path.exists() or not video_path.is_file():
+                    continue
 
-            # 创建演员索引
-            for actor in metadata.get('actors', []):
-                actor_name = actor.get('name_zh', '未知演员')
-                _create_shortcut(video_path, category_dirs['actors'] / _sanitize_for_path(actor_name) / shortcut_name)
+                shortcut_name_base = f"{video_path.stem} - {metadata.get('title_zh', av_code)}"
+                shortcut_name = _sanitize_for_path(shortcut_name_base)
+
+                director = metadata.get('director', {}).get('name_zh', '未知导演')
+                _create_shortcut(video_path, category_dirs['director'] / _sanitize_for_path(director) / shortcut_name)
                 shortcut_count += 1
 
-            # 创建类别索引
-            for category in metadata.get('categories', []):
-                cat_name = category.get('name_zh', '未分类')
-                _create_shortcut(video_path, category_dirs['genres'] / _sanitize_for_path(cat_name) / shortcut_name)
-                shortcut_count += 1
+                for actor in metadata.get('actors', []):
+                    actor_name = actor.get('name_zh', '未知演员')
+                    _create_shortcut(video_path,
+                                     category_dirs['actors'] / _sanitize_for_path(actor_name) / shortcut_name)
+                    shortcut_count += 1
 
-    logger.info(f"索引构建完成，共创建 {shortcut_count} 个快捷方式。")
-    return {'status': 'success'}
+                for category in metadata.get('categories', []):
+                    cat_name = category.get('name_zh', '未分类')
+                    _create_shortcut(video_path, category_dirs['genres'] / _sanitize_for_path(cat_name) / shortcut_name)
+                    shortcut_count += 1
+
+        logger.info(f"索引构建完成，共创建 {shortcut_count} 个快捷方式。")
+        return {'status': 'success'}
+    except Exception as e:
+        raise FatalError(f"索引构建失败: {e}") from e
 
 
 def audit_and_cleanup_source_worker(source_dir: Path, execute_cleanup: bool = False):
@@ -169,7 +166,6 @@ def audit_and_cleanup_source_worker(source_dir: Path, execute_cleanup: bool = Fa
             deleted_count = 0
             for d in empty_dirs:
                 try:
-                    # 使用 rmdir 而不是 rmtree，更安全，只删除空目录
                     d.rmdir()
                     logger.info(f"已删除目录: {d}")
                     deleted_count += 1

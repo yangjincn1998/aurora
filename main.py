@@ -16,7 +16,6 @@ setup_logging()
 import config
 from status_manager import StatManager
 from exceptions import FatalError, IgnorableError
-import scanner
 import movie_crawler
 import audio_extractor
 import transcriber
@@ -27,75 +26,62 @@ import organizer
 logger = logging.getLogger(__name__)
 
 
-# --- 状态诊断函数 ---
-def determine_current_state(av_code: str, status_entry: dict) -> list:
-    """根据物理文件和状态，动态诊断一个番号需要执行的任务列表。"""
-    tasks_to_do = []
-    features = status_entry.get('features', {})
-    segments = status_entry.get('segments', {})
-    if not segments: return []
+# --- 状态诊断函数 (已优化) ---
+def get_tasks_for_round(stat_manager: StatManager, force: bool) -> dict:
+    """诊断所有番号的当前状态，并生成本轮需要执行的所有任务。"""
+    tasks_by_type = {
+        'metadata': [], 'audio': [], 'transcribe': [],
+        'translate_srt': [], 'combine': []
+    }
+    all_status = stat_manager.get_all_status()
 
-    meta_status = features.get('metadata', {}).get('status')
-    if meta_status not in ['completed', 'failed']:
-        if not (config.VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json").exists():
-            tasks_to_do.append('metadata')
+    for av_code, data in all_status.items():
+        if not data.get('segments'): continue
 
-    sub_status = features.get('subtitles', {}).get('status')
-    if sub_status not in ['completed', 'failed']:
-        first_segment_id = next(iter(segments))
-        stem = Path(first_segment_id).stem
+        features = data.get('features', {})
+        task_info = {'av_code': av_code, 'data': data}
 
-        if not (config.BILINGUAL_SUB_DIR / f"{stem}.ass").exists():
-            if not (config.SCH_SUB_DIR / f"{stem}.srt").exists():
-                if not (config.JAP_SUB_DIR / f"{stem}.srt").exists():
-                    if Path(segments[first_segment_id]['full_path']).exists():
-                        tasks_to_do.append('audio')
-                else:
-                    tasks_to_do.append('translate_srt')
-            else:
-                tasks_to_do.append('combine')
+        # --- 诊断元数据任务 ---
+        meta_status = features.get('metadata', {}).get('status')
+        if force or meta_status == 'new':
+            tasks_by_type['metadata'].append(task_info)
 
-    return tasks_to_do
+        # --- 诊断字幕任务 (按顺序) ---
+        sub_status = features.get('subtitles', {}).get('status')
+        if force:  # 强制模式下，从头开始
+            tasks_by_type['audio'].append(task_info)
+        elif sub_status == 'new':
+            tasks_by_type['audio'].append(task_info)
+        elif sub_status == 'audio_extracted':
+            tasks_by_type['transcribe'].append(task_info)
+        elif sub_status == 'transcribed':
+            tasks_by_type['translate_srt'].append(task_info)
+        elif sub_status == 'translated_srt':
+            tasks_by_type['combine'].append(task_info)
+
+    return tasks_by_type
 
 
 # --- 流水线函数 (已修正为循环诊断模型) ---
 def run_process_pipeline(stat_manager: StatManager, gpu_lock, shared_status, force: bool):
-    """执行完整的自动化处理流水线。"""
+    """执行完整的、事件驱动的自动化处理流水线。"""
     logger.info("========== 启动完整处理流水线 ==========")
 
-    max_procs = min((os.cpu_count() or 1), 4)
-    with ProcessPoolExecutor(max_workers=max_procs) as executor:
+    max_procs = min((os.cpu_count() or 1), 4)  # 限制最大进程数以避免过多API并发
 
-        # 启动主循环，直到没有新任务产生
-        while True:
-            tasks_by_type = {'metadata': [], 'audio': [], 'transcribe': [], 'translate_srt': [], 'combine': []}
-            all_status = stat_manager.get_all_status()
+    # 启动主循环，直到没有新任务产生
+    while True:
+        # 1. 生产者：在每次循环开始时，都重新诊断状态
+        tasks_by_type = get_tasks_for_round(stat_manager, force)
+        total_tasks = sum(len(t_list) for t_list in tasks_by_type.values())
 
-            # --- 生产者：在每次循环开始时，都重新诊断状态 ---
-            for av_code, data in all_status.items():
-                sub_feature_status = data.get('features', {}).get('subtitles', {}).get('status')
-                tasks_to_do = determine_current_state(av_code, data)
-                if force: tasks_to_do = ['metadata', 'audio', 'transcribe', 'translate_srt', 'combine']
+        if total_tasks == 0:
+            logger.info("所有任务均已完成，流水线结束。")
+            break
 
-                task_info = {'av_code': av_code, 'data': data}
-                if 'metadata' in tasks_to_do: tasks_by_type['metadata'].append(task_info)
-                if 'audio' in tasks_to_do: tasks_by_type['audio'].append(task_info)
-                if sub_feature_status == 'audio_extracted' or (force and 'transcribe' in tasks_to_do): tasks_by_type[
-                    'transcribe'].append(task_info)
-                if sub_feature_status == 'transcribed' or (force and 'translate_srt' in tasks_to_do): tasks_by_type[
-                    'translate_srt'].append(task_info)
-                if sub_feature_status == 'translated_srt' or (force and 'combine' in tasks_to_do): tasks_by_type[
-                    'combine'].append(task_info)
+        logger.info(f"新一轮诊断完成，发现 {total_tasks} 个待办任务。正在提交...")
 
-            # --- 检查是否还有任务 ---
-            total_tasks = sum(len(t) for t in tasks_by_type.values())
-            if total_tasks == 0:
-                logger.info("所有任务均已完成，流水线结束。")
-                break
-
-            logger.info(f"新一轮诊断完成，发现 {total_tasks} 个待办任务。正在提交...")
-
-            # --- 消费者：提交当前批次的任务 ---
+        with ProcessPoolExecutor(max_workers=max_procs) as executor:
             futures = {}
             worker_map = {
                 'metadata': movie_crawler.crawl_metadata_worker, 'audio': audio_extractor.extract_audio_worker,
@@ -104,6 +90,7 @@ def run_process_pipeline(stat_manager: StatManager, gpu_lock, shared_status, for
                 'combine': subtitle_generator.generate_subtitle_worker
             }
 
+            # 2. 消费者：提交当前批次的任务
             for task_type, task_list in tasks_by_type.items():
                 if not task_list: continue
                 worker = worker_map[task_type]
@@ -125,10 +112,11 @@ def run_process_pipeline(stat_manager: StatManager, gpu_lock, shared_status, for
                                 meta_path = str(config.VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json")
                                 args.extend([jap_srt_path, meta_path])
                             args.append(force)
+
                             f = executor.submit(worker, *args)
                             futures[f] = {'type': task_type, 'av_code': av_code, 'segment_id': seg_id}
 
-            # --- 结果处理：等待当前批次任务完成 ---
+            # 3. 结果处理：等待当前批次任务完成
             for future in as_completed(futures):
                 task_info = futures[future]
                 av_code = task_info['av_code']
@@ -141,9 +129,11 @@ def run_process_pipeline(stat_manager: StatManager, gpu_lock, shared_status, for
                             stat_manager.update_metadata(av_code, result['metadata'])
                             stat_manager.update_feature_status(av_code, 'metadata', 'completed')
                         elif task_type != 'metadata':
-                            next_state = {'audio': 'audio_extracted', 'transcribe': 'transcribed',
-                                          'translate_srt': 'translated_srt', 'combine': 'completed'}
-                            stat_manager.update_feature_status(av_code, 'subtitles', next_state[task_type])
+                            next_state_map = {
+                                'audio': 'audio_extracted', 'transcribe': 'transcribed',
+                                'translate_srt': 'translated_srt', 'combine': 'completed'
+                            }
+                            stat_manager.update_feature_status(av_code, 'subtitles', next_state_map[task_type])
                 except IgnorableError as e:
                     logger.warning(f"任务 {av_code} [Metadata] 失败: {e}")
                     stat_manager.update_feature_status(av_code, 'metadata', 'failed', str(e))
@@ -153,6 +143,9 @@ def run_process_pipeline(stat_manager: StatManager, gpu_lock, shared_status, for
                 except Exception:
                     logger.critical(f"任务 {av_code} [{task_type}] 发生未处理的严重异常", exc_info=True)
 
+        if force:  # 如果是强制模式，一次性执行完所有阶段即可
+            break
+
     text_translator.save_all_caches()
     logger.info("========== 所有流水线任务已处理完毕 ==========")
 
@@ -161,8 +154,9 @@ def run_organizer_pipeline(stat_manager: StatManager):
     logger.info("========== 启动媒体库整理与索引任务 ==========")
     tasks = []
     for code, data in stat_manager.get_all_status().items():
+        meta_ok = data.get('features', {}).get('metadata', {}).get('status') in ['completed', 'failed']
         subs_ok = data.get('features', {}).get('subtitles', {}).get('status') == 'completed'
-        if subs_ok and data.get('segments'):
+        if meta_ok and subs_ok and data.get('segments'):
             for seg_id, seg_data in data['segments'].items():
                 tasks.append({'av_code': code, 'segment_id': seg_id, 'path': seg_data['full_path']})
 

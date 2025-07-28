@@ -1,7 +1,7 @@
 {
   "SIVR-315": {
     "processing_state": "new",
-    "last_updated": 1753717838.189939,
+    "last_updated": 1753720204.5634468,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -25,14 +25,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "AUKS-083": {
     "processing_state": "new",
-    "last_updated": 1753717838.1974523,
+    "last_updated": 1753721347.3948534,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -56,14 +56,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "DDOB-103": {
     "processing_state": "new",
-    "last_updated": 1753717838.2041535,
+    "last_updated": 1753719043.8314877,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -86,7 +86,7 @@
   },
   "DNJR-139": {
     "processing_state": "new",
-    "last_updated": 1753717838.2061374,
+    "last_updated": 1753719043.8344955,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -109,7 +109,7 @@
   },
   "DDOB-044": {
     "processing_state": "new",
-    "last_updated": 1753717838.2081368,
+    "last_updated": 1753719043.837011,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -132,7 +132,7 @@
   },
   "KTRA-662": {
     "processing_state": "new",
-    "last_updated": 1753717838.209137,
+    "last_updated": 1753719043.8400266,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -155,7 +155,7 @@
   },
   "PRED-726": {
     "processing_state": "new",
-    "last_updated": 1753717838.211137,
+    "last_updated": 1753719043.8430266,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -178,7 +178,7 @@
   },
   "PRED-782": {
     "processing_state": "new",
-    "last_updated": 1753717838.2126474,
+    "last_updated": 1753719043.8440251,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -201,7 +201,7 @@
   },
   "SNIS-707": {
     "processing_state": "new",
-    "last_updated": 1753717838.2136478,
+    "last_updated": 1753719043.8450267,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -224,7 +224,7 @@
   },
   "VRPRD-070": {
     "processing_state": "new",
-    "last_updated": 1753717838.217646,
+    "last_updated": 1753719043.8495483,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -251,7 +251,7 @@
   },
   "WAAA-453": {
     "processing_state": "new",
-    "last_updated": 1753717838.2186458,
+    "last_updated": 1753719043.8515491,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -274,7 +274,7 @@
   },
   "DDT-475": {
     "processing_state": "new",
-    "last_updated": 1753717838.2196453,
+    "last_updated": 1753719043.855548,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -297,7 +297,7 @@
   },
   "EVO-126": {
     "processing_state": "new",
-    "last_updated": 1753717838.2221522,
+    "last_updated": 1753719043.8535485,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -320,7 +320,7 @@
   },
   "SIVR-007": {
     "processing_state": "new",
-    "last_updated": 1753717838.2271566,
+    "last_updated": 1753719043.8651862,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -351,7 +351,7 @@
   },
   "BBAN-217": {
     "processing_state": "new",
-    "last_updated": 1753717838.2291558,
+    "last_updated": 1753719043.8625655,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -374,7 +374,7 @@
   },
   "RKI-715": {
     "processing_state": "new",
-    "last_updated": 1753717838.230155,
+    "last_updated": 1753719043.8677316,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -397,7 +397,7 @@
   },
   "SSNI-338": {
     "processing_state": "new",
-    "last_updated": 1753717838.2316577,
+    "last_updated": 1753719043.8697314,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},

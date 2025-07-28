@@ -2,6 +2,9 @@
 import multiprocessing
 import os
 import logging
+
+import whisper
+
 import config
 import time
 from pathlib import Path
@@ -116,17 +119,58 @@ def _transcribe_with_assemblyai(audio_path: Path) -> str:
         raise _TranscriptionError(f"AssemblyAI服务调用失败: {e}") from e
 
 
+def _transcribe_with_whisper(audio_path: Path, gpu_lock) -> str:
+    """
+    【核心功能 - Whisper (已切换到 openai-whisper)】
+    使用本地Whisper模型进行转写，并通过GPU锁确保资源安全。
+    """
+    global _whisper_model
+    if not WHISPER_AVAILABLE: raise _TranscriptionError("openai-whisper 库未安装。")
+
+    logger.info(f"[{audio_path.name}] 正在等待GPU锁以执行Whisper转写...")
+    gpu_lock.acquire()
+    try:
+        logger.info(f"[{audio_path.name}] 已获取GPU锁。")
+
+        # 【变更】懒加载模型：使用 whisper.load_model
+        if _whisper_model is None:
+            # 您可以在这里指定模型大小 "tiny", "base", "small", "medium", "large"
+            model_size = "medium"
+            logger.info(f"[进程 PID: {os.getpid()}] 首次加载Whisper '{model_size}' 模型...")
+            # load_model 会自动尝试使用GPU，如果可用
+            _whisper_model = whisper.load_model(model_size)
+            logger.info(f"[进程 PID: {os.getpid()}] Whisper模型加载完成。")
+
+        start_time = time.time()
+        # 【变更】调用 openai-whisper 的 transcribe 方法
+        result = _whisper_model.transcribe(str(audio_path), language="ja")
+
+        # 【变更】处理 openai-whisper 的返回格式 (一个字典)
+        results = result["segments"]
+
+        duration = time.time() - start_time
+        logger.info(f"检测到语言: '{result['language']}'")
+        logger.info(f"[{audio_path.name}] Whisper转写完成，耗时: {duration:.2f} 秒。")
+        return _to_srt(results)
+
+    except Exception as e:
+        raise _TranscriptionError(f"本地Whisper转写失败: {e}") from e
+    finally:
+        gpu_lock.release()
+        logger.info(f"[{audio_path.name}] 已释放GPU锁。")
+
+
 # --- 公开接口 (Worker/Orchestration Layer) ---
 def transcribe_audio_worker(av_code: str, segment_id: str, audio_path_str: str,
                             gpu_lock, shared_status: Dict, force: bool = False) -> Dict:
-    """【工人函数】负责编排音频转写流程，实现服务动态切换和GPU安全锁。"""
+    """【工人函数】(此函数接口和外部逻辑保持不变)"""
     logger.info(f"--- 开始处理番号 {av_code} (分段: {segment_id}) 的【核心流程：音频转写】 ---")
 
     audio_path = Path(audio_path_str)
-    output_srt_path = config.JAP_SUB_DIR / (Path(segment_id).stem + ".srt")
+    output_srt_path = JAP_SUB_DIR / (Path(segment_id).stem + ".srt")
 
     if output_srt_path.exists() and not force:
-        logger.info(f"日文字幕 '{output_srt_path.name}' 已存在，跳过。")
+        logger.info(f"日文字幕 '{output_srt_path.name}' 已存在，跳过转写任务。")
         return {'status': 'skipped', 'av_code': av_code, 'segment_id': segment_id}
 
     try:
@@ -140,19 +184,24 @@ def transcribe_audio_worker(av_code: str, segment_id: str, audio_path_str: str,
             try:
                 srt_content = _transcribe_with_assemblyai(audio_path)
             except _TranscriptionError as e:
-                logger.warning(f"AssemblyAI服务失败 (错误: {e})，熔断并切换到Whisper...")
+                logger.warning(f"AssemblyAI服务失败 (错误: {e})，正在打开熔断器并切换到Whisper...")
                 shared_status['transcription_service'] = 'whisper'
 
         if srt_content is None:
+            if shared_status.get('transcription_service') == 'whisper':
+                logger.info(f"[{segment_id}] 熔断器已打开，直接使用Whisper。")
             srt_content = _transcribe_with_whisper(audio_path, gpu_lock)
 
         output_srt_path.parent.mkdir(parents=True, exist_ok=True)
         output_srt_path.write_text(srt_content, encoding='utf-8')
+        logger.info(f"成功为 {segment_id} 生成日文字幕，保存至 {output_srt_path}")
 
         return {'status': 'success', 'av_code': av_code, 'segment_id': segment_id}
 
     except Exception as e:
-        raise FatalError(f"音频转写失败: {e}") from e
+        error_message = f"音频转写失败: {e}"
+        logger.critical(f"为 {segment_id} 转写音频时，所有方案均告失败: {error_message}", exc_info=True)
+        raise FatalError(error_message) from e
 
 
 # --- 测试主函数 ---
