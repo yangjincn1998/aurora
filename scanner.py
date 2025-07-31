@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 from exceptions import FatalError
+import json
 
 logger = logging.getLogger(__name__)
 VIDEO_EXTENSIONS: List[str] = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm']
@@ -59,8 +60,9 @@ def scan_directory(directory_path: Union[str, Path]) -> Dict:
             if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS:
                 base_av_code, seg_id = _extract_av_code_and_segment(p.name)
                 if base_av_code:
-                    av_entry = found_videos_map.setdefault(base_av_code, {'segments': {}})
-                    if seg_id not in av_entry['segments']:
+                    # 检查是否已通过目录扫描找到，避免重复
+                    if base_av_code not in found_videos_map:
+                        av_entry = found_videos_map.setdefault(base_av_code, {'segments': {}})
                         av_entry['segments'][seg_id] = {'full_path': str(p.resolve()), 'video_file_name': seg_id}
     except (PermissionError, OSError) as e:
         raise FatalError(f"扫描因文件系统错误而终止: {e}") from e
@@ -68,3 +70,14 @@ def scan_directory(directory_path: Union[str, Path]) -> Dict:
     count = sum(len(data['segments']) for data in found_videos_map.values())
     logger.info(f"扫描完成。共找到 {count} 个视频文件，归属于 {len(found_videos_map)} 个番号。")
     return found_videos_map
+
+if __name__ == "__main__":
+    # 测试扫描功能
+    test_directory = Path(r"D:\4. Collections\6.Adult Videos\raw")  # 请替换为实际测试目录
+    try:
+        result = scan_directory(test_directory)
+        json = json.dumps(result, indent=4, ensure_ascii=False)
+        with open('metadata.json', 'w', encoding='utf-8') as f:
+            f.write(json)
+    except FatalError as e:
+        logger.error(f"扫描失败: {e}")

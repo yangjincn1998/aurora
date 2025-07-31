@@ -1,7 +1,7 @@
 {
   "SIVR-315": {
     "processing_state": "new",
-    "last_updated": 1753720204.5634468,
+    "last_updated": 1753722504.097328,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -25,14 +25,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "transcribed",
-        "error_message": null
+        "status": "failed",
+        "error_message": "SRT翻译失败: 依赖文件缺失：D:\\4. Collections\\6.Adult Videos\\AV_Translator\\_temp\\sub_jap\\sivr00315vrv18khia1.srt"
       }
     }
   },
   "AUKS-083": {
     "processing_state": "new",
-    "last_updated": 1753721347.3948534,
+    "last_updated": 1753722504.1121519,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -56,14 +56,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "transcribed",
-        "error_message": null
+        "status": "failed",
+        "error_message": "SRT翻译失败: 依赖文件缺失：D:\\4. Collections\\6.Adult Videos\\AV_Translator\\_temp\\sub_jap\\AUKS-083-1 女女同志 早川.srt"
       }
     }
   },
   "DDOB-103": {
     "processing_state": "new",
-    "last_updated": 1753719043.8314877,
+    "last_updated": 1753891471.9609833,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -79,14 +79,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "DNJR-139": {
     "processing_state": "new",
-    "last_updated": 1753719043.8344955,
+    "last_updated": 1753892054.5019686,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -102,14 +102,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "DDOB-044": {
     "processing_state": "new",
-    "last_updated": 1753719043.837011,
+    "last_updated": 1753890443.0952942,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -125,14 +125,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "KTRA-662": {
     "processing_state": "new",
-    "last_updated": 1753719043.8400266,
+    "last_updated": 1753890576.1105037,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -148,14 +148,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "PRED-726": {
     "processing_state": "new",
-    "last_updated": 1753719043.8430266,
+    "last_updated": 1753892079.1632807,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -171,14 +171,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "PRED-782": {
     "processing_state": "new",
-    "last_updated": 1753719043.8440251,
+    "last_updated": 1753892094.667768,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -194,14 +194,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "SNIS-707": {
     "processing_state": "new",
-    "last_updated": 1753719043.8450267,
+    "last_updated": 1753892121.005707,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -217,14 +217,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "VRPRD-070": {
     "processing_state": "new",
-    "last_updated": 1753719043.8495483,
+    "last_updated": 1753892453.587484,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -244,14 +244,14 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }
   },
   "WAAA-453": {
     "processing_state": "new",
-    "last_updated": 1753719043.8515491,
+    "last_updated": 1753893602.8643944,
     "error_message": null,
     "metadata_crawled": false,
     "metadata": {},
@@ -267,7 +267,7 @@
         "error_message": "元数据处理失败: 未知的元数据缓存类型: title"
       },
       "subtitles": {
-        "status": "audio_extracted",
+        "status": "transcribed",
         "error_message": null
       }
     }

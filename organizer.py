@@ -90,34 +90,28 @@ def build_index_worker(all_status_data: Dict) -> Dict:
     """【工人函数】根据完整的状态数据构建分类索引。"""
     logger.info("--- 开始构建媒体库分类索引 ---")
     try:
-        if INDEX_DIR.exists():
-            logger.info(f"正在清理旧索引目录: {INDEX_DIR}")
-            shutil.rmtree(INDEX_DIR)
+        if config.INDEX_DIR.exists():
+            shutil.rmtree(config.INDEX_DIR)
 
         category_dirs = {
-            "actors": INDEX_DIR / "演员 (Actors)",
-            "genres": INDEX_DIR / "类别 (Categories)",
-            "director": INDEX_DIR / "导演 (Directors)"
+            "actors": config.INDEX_DIR / "演员 (Actors)",
+            "genres": config.INDEX_DIR / "类别 (Categories)",
+            "director": config.INDEX_DIR / "导演 (Directors)"
         }
         for d in category_dirs.values():
             d.mkdir(parents=True, exist_ok=True)
 
-        # 【修正】在这里初始化 shortcut_count 变量
-        shortcut_count = 0
+        shortcut_count = 0  # 【修正】初始化变量
 
         for av_code, data in all_status_data.items():
-            metadata_path = VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json"
-            if not metadata_path.exists():
-                continue
-
+            metadata_path = config.VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json"
+            if not metadata_path.exists(): continue
             with open(metadata_path, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
 
             for segment in data.get('segments', {}).values():
                 video_path = Path(segment['full_path'])
-                if not video_path.exists() or not video_path.is_file():
-                    continue
-
+                if not video_path.exists(): continue
                 shortcut_name_base = f"{video_path.stem} - {metadata.get('title_zh', av_code)}"
                 shortcut_name = _sanitize_for_path(shortcut_name_base)
 

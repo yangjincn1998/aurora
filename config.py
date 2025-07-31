@@ -2,9 +2,10 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
 
-# 加载 .env 文件中的环境变量
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 # --- 核心路径配置 ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -36,13 +37,14 @@ try:
     PROMPTS = prompts_content.split(PROMPT_SEPARATOR)
     SRT_PROMPT, META_PROMPT, TITLE_PROMPT = [p.strip() for p in PROMPTS]
 except Exception as e:
-    print(f"[CRITICAL] prompt.txt 加载或解析失败: {e}。将使用默认提示词。")
+    logger.critical(f"prompt.txt 加载或解析失败: {e}。将使用默认提示词。", exc_info=True)
     SRT_PROMPT, META_PROMPT, TITLE_PROMPT = "请翻译", "请翻译", "请翻译"
+
+METADATA_PATH = BASE_DIR/ "metadata.json"
 
 # --- 创建所有必要的目录 ---
 def initialize_directories():
     """创建项目中所有需要用到的目录"""
     for d in [VIDEO_SOURCE_DIRECTORY, VIDEO_LIBRARY_DIRECTORY, METADATA_CACHE_DIR, AUDIO_DIR, JAP_SUB_DIR, SCH_SUB_DIR, BILINGUAL_SUB_DIR]:
         d.mkdir(parents=True, exist_ok=True)
-
 initialize_directories()
