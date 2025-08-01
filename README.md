@@ -92,7 +92,7 @@ pip install -r requirements.txt
 
           * 示例: `VIDEO_SOURCE_DIRECTORY=D:/Downloads/NewVideos`
 
-      * `VIDEO_LIBRARY_DIRECTORY`: **【必需】** 用于存放所有处理完成、已归档影片的最终媒体库路径。建议设置一个空目录（此功能尚未实现）。
+      * `VIDEO_LIBRARY_DIRECTORY`: **【必需】** 用于存放所有处理完成、已归档影片的最终媒体库路径。建议设置一个空目录（此功能尚未实现, 但是需要占位，不然会报错）。
 
           * 示例: `VIDEO_LIBRARY_DIRECTORY=D:/MyMedia/AV_Library`
 
