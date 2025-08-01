@@ -17,6 +17,8 @@ gpu_lock = threading.Lock()
 shared_status = {'transcription_service':'assemblyai'}
 
 def linear_processor():
+    if not METADATA_PATH.exists():
+        METADATA_PATH.touch()
     try:
         scan_and_make_json()
     except FatalError as e:
