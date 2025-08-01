@@ -81,7 +81,7 @@ def _generate_metadata_intro_events(metadata: dict) -> List[str]:
 
     # --- 片名 (大字) ---
     title_text = metadata.get('title_zh') or metadata.get('title')
-    if title_text and title_text != "N/A":
+    if title_text and (title_text != "N/A" or title_text == "不详"):
         # 去除番号前缀
         clean_title = re.sub(r'^[A-Z]{2,5}-\d{2,5}\s*', '', title_text).strip()
         display_items.append({'style': 'Intro_Large', 'text': clean_title})
@@ -96,7 +96,7 @@ def _generate_metadata_intro_events(metadata: dict) -> List[str]:
 
     # --- 类别 (中字) ---
     category_list = metadata.get('categories_zh') or metadata.get('categories', [])
-    category_list = [name for name in category_list if name and name != "N/A"]
+    category_list = [name for name in category_list if name and name not in  ["N/A", "不详"]]
     if category_list:
         category_text = f"类别：{', '.join(category_list)}"
         display_items.append({'style': 'Intro_Normal', 'text': category_text})
@@ -106,9 +106,9 @@ def _generate_metadata_intro_events(metadata: dict) -> List[str]:
     release_date = metadata.get('release_date')
 
     director_line_parts = []
-    if release_date and release_date != "N/A":
+    if release_date and release_date not in ["N/A", "不详"]:
         director_line_parts.append(release_date)
-    if director_name and director_name != "N/A":
+    if director_name and director_name != ["N/A", "不详"]:
         director_line_parts.append(f"{director_name} 作品")
 
     if director_line_parts:
