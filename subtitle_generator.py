@@ -6,6 +6,8 @@ from typing import Dict, List, Tuple
 import os
 import re
 
+from sympy.integrals.meijerint_doc import category
+
 # --- 第三方库导入 ---
 try:
     import pysrt
@@ -16,7 +18,7 @@ except ImportError:
     pysrt = None
 
 # --- 从我们自己的模块导入 ---
-from config import JAP_SUB_DIR, SCH_SUB_DIR, BILINGUAL_SUB_DIR, VIDEO_LIBRARY_DIRECTORY
+from config import JAP_SUB_DIR, SCH_SUB_DIR, BILINGUAL_SUB_DIR, VIDEO_LIBRARY_DIRECTORY, METADATA_PATH
 from exceptions import FatalError
 
 # StatManager 不再需要导入
@@ -39,10 +41,9 @@ PlayResY: 1080
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: CHS_Main,Microsoft YaHei,75,&H00FFFFFF,&H000000FF,&H00000000,&H0050000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,20,1
 Style: JPN_Sub,Microsoft YaHei,55,&H00B0B0B0,&H000000FF,&H00000000,&H0050000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,20,1
-Style: Intro_Normal,Microsoft YaHei,65,&H0000FFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
-Style: Intro_Small,Microsoft YaHei,50,&H0000FFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
-Style: Intro_Large,Microsoft YaHei,80,&H0000FFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
-
+Style: Intro_Normal,Microsoft YaHei,65,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
+Style: Intro_Small,Microsoft YaHei,50,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
+Style: Intro_Large,Microsoft YaHei,80,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -70,27 +71,75 @@ def _format_seconds_to_ass(seconds: float) -> str:
 
 
 def _generate_metadata_intro_events(metadata: dict) -> List[str]:
-    """【内部函数】根据元数据动态生成ASS格式的片头事件行。"""
+    """
+    【内部函数】根据元数据动态生成ASS格式的片头事件行。
+    实现了“中文优先，日文回退，都没有则不显示”的逻辑和动态时间轴。
+    """
     display_items = []
-    # (逻辑与之前版本相同：中文优先，日文回退，都没有则不显示)
-    title_text = metadata.get('title_zh') or metadata.get('title')
-    if title_text and title_text != "N/A": display_items.append({'style': 'Intro_Normal', 'text': f"片名：{title_text}"})
-    actor_names = [a.get('name_zh') or a.get('name') for a in metadata.get('actors', [])]
-    actor_names = [name for name in actor_names if name and name != "N/A"]
-    if actor_names: display_items.append({'style': 'Intro_Small', 'text': f"主演：{', '.join(actor_names)}"})
-    # ... (类别和导演的逻辑类似)
-    if not display_items: return []
 
+    # 1. 搜集并校验需要显示的元数据
+
+    # --- 片名 (大字) ---
+    title_text = metadata.get('title_zh') or metadata.get('title')
+    if title_text and title_text != "N/A":
+        # 去除番号前缀
+        clean_title = re.sub(r'^[A-Z]{2,5}-\d{2,5}\s*', '', title_text).strip()
+        display_items.append({'style': 'Intro_Large', 'text': clean_title})
+
+    # --- 主演 (中字) ---
+    # 【修正】适配您的JSON结构，它现在是字符串列表
+    actor_list = metadata.get('actors_zh') or metadata.get('actors', [])
+    actor_list = [name for name in actor_list if name and name != "N/A"]
+    if actor_list:
+        actor_text = f"主演\\N{'  '.join(actor_list)}"
+        display_items.append({'style': 'Intro_Normal', 'text': actor_text})
+
+    # --- 类别 (中字) ---
+    category_list = metadata.get('categories_zh') or metadata.get('categories', [])
+    category_list = [name for name in category_list if name and name != "N/A"]
+    if category_list:
+        category_text = f"类别：{', '.join(category_list)}"
+        display_items.append({'style': 'Intro_Normal', 'text': category_text})
+
+    # --- 发行日期与导演 (大字) ---
+    director_name = metadata.get('director_zh') or metadata.get('director')
+    release_date = metadata.get('release_date')
+
+    director_line_parts = []
+    if release_date and release_date != "N/A":
+        director_line_parts.append(release_date)
+    if director_name and director_name != "N/A":
+        director_line_parts.append(f"{director_name} 作品")
+
+    if director_line_parts:
+        director_text = "\\N".join(director_line_parts)  # 使用ASS换行符
+        display_items.append({'style': 'Intro_Large', 'text': director_text})
+
+    # 2. 如果没有任何可显示项，则直接返回，不生成任何事件
+    if not display_items:
+        return []
+
+    # 3. 动态计算时间轴并生成事件行
     events = ["; --- Metadata Intro Sequence ---"]
-    total_duration, start_delay = 10.0, 0.5
-    duration_per_item = (total_duration - start_delay) / len(display_items)
+    total_duration = 15.0
+    start_delay = 0.5
+    # 根据实际要显示的条目数，均匀分配时间
+    duration_per_item = [3, 2.5, 4, 3]
     current_time = start_delay
     fade_effect = r"{\fad(500,500)}"
-    for item in display_items:
-        start_s, end_s = current_time, current_time + duration_per_item
+
+    for i, item in enumerate(display_items):
+        start_s = current_time
+        end_s = current_time + duration_per_item[i]
+
+        # 格式化时间并生成Dialogue行
+        start_time_ass = _format_seconds_to_ass(start_s)
+        end_time_ass = _format_seconds_to_ass(end_s)
+
         events.append(
-            f"Dialogue: 0,{_format_seconds_to_ass(start_s)},{_format_seconds_to_ass(end_s)},{item['style']},,0,0,0,,{fade_effect}{item['text']}")
+            f"Dialogue: 0,{start_time_ass},{end_time_ass},{item['style']},,0,0,0,,{fade_effect}{item['text']}")
         current_time = end_s
+
     return events
 
 
@@ -118,7 +167,7 @@ def _create_bilingual_subtitle_content(jap_srt_text: str, sch_srt_text: str, met
     final_ass_content = ASS_HEADER_TEMPLATE.format(title=metadata.get('title', '')) + "\n".join(ass_events)
 
     # 生成 SRT 内容
-    actors_str = ', '.join([a.get('name_zh', 'N/A') for a in metadata.get('actors', [])])
+    actors_str = ', '.join([a for a in metadata.get('actors_zh', [])])
     info_header = f"0\n00:00:00,000 --> 00:00:05,000\n--- 由 Aurora 字幕工具生成 ---\n片名: {metadata.get('title_zh', 'N/A')}\n演员: {actors_str}\n"
     srt_content_parts = [info_header]
     for i, jap_sub in enumerate(subs_jap):
@@ -145,7 +194,7 @@ def generate_subtitle_worker(av_code: str, segment_id: str, force: bool = False)
     sch_srt_path = SCH_SUB_DIR / f"{stem}.srt"
     bilingual_srt_path = BILINGUAL_SUB_DIR / f"{stem}.srt"
     bilingual_ass_path = BILINGUAL_SUB_DIR / f"{stem}.ass"
-    metadata_path = VIDEO_LIBRARY_DIRECTORY / av_code / "metadata.json"
+    metadata_path = METADATA_PATH
 
     try:
         # 依赖文件检查
@@ -159,9 +208,10 @@ def generate_subtitle_worker(av_code: str, segment_id: str, force: bool = False)
                 logger.info(f"双语字幕 '{bilingual_ass_path.name}' 已是最新，跳过。")
                 return {'status': 'skipped', 'av_code': av_code, 'segment_id': segment_id}
 
-        movie_metadata = {}
+        movies_metadata = {}
         if metadata_path.exists():
-            with open(metadata_path, 'r', encoding='utf-8') as f: movie_metadata = json.load(f)
+            with open(metadata_path, 'r', encoding='utf-8') as f: movies_metadata = json.load(f)
+        movie_metadata = movies_metadata.get(av_code, {})
 
         jap_srt_text = jap_srt_path.read_text(encoding='utf-8')
         sch_srt_text = sch_srt_path.read_text(encoding='utf-8')

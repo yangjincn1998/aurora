@@ -38,7 +38,7 @@ load_dotenv()
 
 # --- 模块级常量与配置 ---
 _INTERNAL_CONCURRENCY_LEVEL = 4
-_SRT_CHUNK_SIZE = 200
+_SRT_CHUNK_SIZE = 100
 _RATE_LIMIT_WAIT_SECONDS = 65
 
 # 定义默认的模型调用优先级
@@ -154,7 +154,7 @@ def _call_deepseek_api(system_prompt: str, user_prompt: str) -> str:
         stream = deepseek_client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": f'{uuid}\n{system_prompt}'},
                 {"role": "user", "content": final_user_prompt}
             ],
             temperature=0.1,

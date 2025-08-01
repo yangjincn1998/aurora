@@ -119,47 +119,6 @@ def _transcribe_with_assemblyai(audio_path: Path) -> str:
         raise _TranscriptionError(f"AssemblyAI服务调用失败: {e}") from e
 
 
-def _transcribe_with_whisper(audio_path: Path, gpu_lock) -> str:
-    """
-    【核心功能 - Whisper (已切换到 openai-whisper)】
-    使用本地Whisper模型进行转写，并通过GPU锁确保资源安全。
-    """
-    global _whisper_model
-    if not WHISPER_AVAILABLE: raise _TranscriptionError("openai-whisper 库未安装。")
-
-    logger.info(f"[{audio_path.name}] 正在等待GPU锁以执行Whisper转写...")
-    gpu_lock.acquire()
-    try:
-        logger.info(f"[{audio_path.name}] 已获取GPU锁。")
-
-        # 【变更】懒加载模型：使用 whisper.load_model
-        if _whisper_model is None:
-            # 您可以在这里指定模型大小 "tiny", "base", "small", "medium", "large"
-            model_size = "medium"
-            logger.info(f"[进程 PID: {os.getpid()}] 首次加载Whisper '{model_size}' 模型...")
-            # load_model 会自动尝试使用GPU，如果可用
-            _whisper_model = whisper.load_model(model_size)
-            logger.info(f"[进程 PID: {os.getpid()}] Whisper模型加载完成。")
-
-        start_time = time.time()
-        # 【变更】调用 openai-whisper 的 transcribe 方法
-        result = _whisper_model.transcribe(str(audio_path), language="ja")
-
-        # 【变更】处理 openai-whisper 的返回格式 (一个字典)
-        results = result["segments"]
-
-        duration = time.time() - start_time
-        logger.info(f"检测到语言: '{result['language']}'")
-        logger.info(f"[{audio_path.name}] Whisper转写完成，耗时: {duration:.2f} 秒。")
-        return _to_srt(results)
-
-    except Exception as e:
-        raise _TranscriptionError(f"本地Whisper转写失败: {e}") from e
-    finally:
-        gpu_lock.release()
-        logger.info(f"[{audio_path.name}] 已释放GPU锁。")
-
-
 # --- 公开接口 (Worker/Orchestration Layer) ---
 def transcribe_audio_worker(av_code: str, segment_id: str, audio_path_str: str,
                             gpu_lock, shared_status: Dict, force: bool = False) -> Dict:
