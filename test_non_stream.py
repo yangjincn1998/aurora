@@ -4,6 +4,8 @@
 import os
 import dotenv
 import openai
+import httpx
+import json
 from pathlib import Path
 from services.translate.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
 
@@ -61,29 +63,77 @@ print("=" * 60)
 print("Testing NON-STREAMING request...")
 print("=" * 60)
 
+# 使用 httpx 直接发送请求以捕获原始响应
 try:
-    response = client.chat.completions.create(
-        model="google/gemini-2.5-pro",
-        messages=messages,
-        stream=False,
-        extra_body=safety_settings
-    )
+    # 构建请求体
+    request_body = {
+        "model": "google/gemini-2.5-pro",
+        "messages": messages,
+        "stream": False,
+        "response_format": {"type": "json_object"},
+        **safety_settings
+    }
 
-    content = response.choices[0].message.content
-    finish_reason = response.choices[0].finish_reason
+    # 使用 httpx 发送请求
+    with httpx.Client(timeout=600) as http_client:
+        response = http_client.post(
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json=request_body
+        )
 
-    print(f"\nSuccess!")
-    print(f"Finish reason: {finish_reason}")
-    print(f"Response length: {len(content)} chars")
-    print(f"\nFirst 500 chars of response:")
-    print("-" * 60)
-    print(content[:500])
-    print("-" * 60)
+        print(f"\nHTTP Status Code: {response.status_code}")
+        print(f"Response Headers:")
+        for key, value in response.headers.items():
+            print(f"  {key}: {value}")
 
-    # 保存结果
-    output_file = Path("test_mode/non_stream_full_result.srt")
-    output_file.write_text(content, encoding="utf-8")
-    print(f"\nResult saved to: {output_file}")
+        print(f"\nRaw Response (first 2000 chars):")
+        print("=" * 60)
+        raw_text = response.text
+        print(raw_text[:2000])
+        print("=" * 60)
+
+        # 保存完整原始响应
+        raw_file = Path("test_mode/raw_response.txt")
+        raw_file.write_text(raw_text, encoding="utf-8")
+        print(f"\nFull raw response saved to: {raw_file}")
+
+        # 尝试解析 JSON
+        try:
+            data = response.json()
+            print(f"\nJSON parsed successfully!")
+            print(f"Response structure: {json.dumps(data, indent=2, ensure_ascii=False)[:1000]}")
+
+            if "choices" in data and len(data["choices"]) > 0:
+                content = data["choices"][0]["message"]["content"]
+                finish_reason = data["choices"][0]["finish_reason"]
+
+                print(f"\nSuccess!")
+                print(f"Finish reason: {finish_reason}")
+                print(f"Response length: {len(content)} chars")
+                print(f"\nFirst 500 chars of response:")
+                print("-" * 60)
+                print(content[:500])
+                print("-" * 60)
+
+                # 保存结果
+                output_file = Path("test_mode/non_stream_full_result.srt")
+                output_file.write_text(content, encoding="utf-8")
+                print(f"\nResult saved to: {output_file}")
+            else:
+                print(f"\nUnexpected response format: {data}")
+
+        except json.JSONDecodeError as je:
+            print(f"\nJSON Decode Error: {je}")
+            print(f"Error at line {je.lineno}, column {je.colno}, position {je.pos}")
+            if je.pos > 0:
+                start = max(0, je.pos - 100)
+                end = min(len(raw_text), je.pos + 100)
+                print(f"\nContext around error position:")
+                print(raw_text[start:end])
 
 except Exception as e:
     print(f"\nError: {type(e).__name__}: {e}")
