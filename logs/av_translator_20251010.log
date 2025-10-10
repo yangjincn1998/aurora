@@ -123,3 +123,255 @@
 [2025-10-10 13:42:45] [INFO] [strategies:205] Processing node with 1044 subtitles
 [2025-10-10 13:42:45] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
 [2025-10-10 13:42:45] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:34] [INFO] [main:52] ================================================================================
+[2025-10-10 22:56:34] [INFO] [main:53] 开始字幕校正...
+[2025-10-10 22:56:34] [INFO] [main:54] ================================================================================
+[2025-10-10 22:56:34] [INFO] [strategies:238] Processing node with 550 subtitles
+[2025-10-10 22:56:34] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:34] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:34] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:34] [WARNING] [strategies:255] Node processing failed, subtitle count: 550
+[2025-10-10 22:56:34] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:34] [INFO] [strategies:238] Processing node with 183 subtitles
+[2025-10-10 22:56:34] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:34] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:35] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:35] [WARNING] [strategies:255] Node processing failed, subtitle count: 183
+[2025-10-10 22:56:35] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:35] [INFO] [strategies:238] Processing node with 61 subtitles
+[2025-10-10 22:56:35] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:35] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:35] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:35] [WARNING] [strategies:255] Node processing failed, subtitle count: 61
+[2025-10-10 22:56:35] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:35] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:35] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:35] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:35] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:35] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:35] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:35] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:35] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:35] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:35] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:35] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:35] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:35] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:35] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:36] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:36] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:36] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:36] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:36] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:36] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:36] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:36] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:36] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:36] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:36] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:36] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:36] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:36] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:36] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:36] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:36] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:36] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:36] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:36] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:36] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:37] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:37] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:37] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:37] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:37] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:37] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:37] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:37] [INFO] [strategies:238] Processing node with 21 subtitles
+[2025-10-10 22:56:37] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:37] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:38] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:38] [WARNING] [strategies:255] Node processing failed, subtitle count: 21
+[2025-10-10 22:56:38] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:38] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:38] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:38] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:38] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:38] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:38] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:38] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:38] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:38] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:38] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:38] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:38] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:38] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:38] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:38] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:38] [INFO] [strategies:238] Processing node with 61 subtitles
+[2025-10-10 22:56:38] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:38] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:39] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:39] [WARNING] [strategies:255] Node processing failed, subtitle count: 61
+[2025-10-10 22:56:39] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:39] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:39] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:39] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:39] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:39] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:39] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:39] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:39] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:39] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:39] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:39] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:39] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:39] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:39] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:39] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:39] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:39] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:39] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:39] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:40] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:40] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:40] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:40] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:40] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:40] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:40] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:40] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:40] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:40] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:40] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:40] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:40] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:40] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:40] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:40] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:41] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:41] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:41] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:41] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:41] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:41] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:41] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:41] [INFO] [strategies:238] Processing node with 21 subtitles
+[2025-10-10 22:56:41] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:41] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:41] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:41] [WARNING] [strategies:255] Node processing failed, subtitle count: 21
+[2025-10-10 22:56:41] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:41] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:41] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:41] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:41] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:41] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:41] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:41] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:41] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:42] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:42] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:42] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:42] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:42] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:42] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:42] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:42] [INFO] [strategies:238] Processing node with 61 subtitles
+[2025-10-10 22:56:42] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:42] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:42] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:42] [WARNING] [strategies:255] Node processing failed, subtitle count: 61
+[2025-10-10 22:56:42] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:42] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:42] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:42] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:42] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:42] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:42] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:42] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:42] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:42] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:43] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:43] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:43] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:43] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:43] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:43] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:43] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:43] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:43] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:43] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:43] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:43] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:43] [INFO] [strategies:238] Processing node with 20 subtitles
+[2025-10-10 22:56:43] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:43] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:43] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:43] [WARNING] [strategies:255] Node processing failed, subtitle count: 20
+[2025-10-10 22:56:43] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:43] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:43] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:43] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:44] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:44] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:44] [INFO] [strategies:238] Processing node with 6 subtitles
+[2025-10-10 22:56:44] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:44] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:44] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:44] [WARNING] [strategies:255] Node processing failed, subtitle count: 6
+[2025-10-10 22:56:44] [INFO] [strategies:238] Processing node with 8 subtitles
+[2025-10-10 22:56:44] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:44] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:44] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:44] [WARNING] [strategies:255] Node processing failed, subtitle count: 8
+[2025-10-10 22:56:44] [INFO] [strategies:238] Processing node with 21 subtitles
+[2025-10-10 22:56:44] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:44] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:45] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:45] [WARNING] [strategies:255] Node processing failed, subtitle count: 21
+[2025-10-10 22:56:45] [INFO] [strategies:259] Splitting node into 3 parts
+[2025-10-10 22:56:45] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:45] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:45] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:56:45] [ERROR] [provider:113] OpenAI API authentication error: Error code: 401 - {'error': {'message': 'User not found.', 'code': 401}}
+[2025-10-10 22:56:45] [WARNING] [strategies:255] Node processing failed, subtitle count: 7
+[2025-10-10 22:56:45] [INFO] [strategies:238] Processing node with 7 subtitles
+[2025-10-10 22:56:45] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:56:45] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 22:58:25] [INFO] [main:52] ================================================================================
+[2025-10-10 22:58:25] [INFO] [main:53] 开始字幕校正...
+[2025-10-10 22:58:25] [INFO] [main:54] ================================================================================
+[2025-10-10 22:58:25] [INFO] [strategies:238] Processing node with 550 subtitles
+[2025-10-10 22:58:25] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 22:58:25] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 23:03:56] [INFO] [main:52] ================================================================================
+[2025-10-10 23:03:56] [INFO] [main:53] 开始字幕校正...
+[2025-10-10 23:03:56] [INFO] [main:54] ================================================================================
+[2025-10-10 23:03:56] [INFO] [strategies:303] Adaptive slice: total lines number: 1598, slice size: 550 -> plan to slice to 3 slices, base size: 532, remainder: 2
+[2025-10-10 23:03:56] [INFO] [strategies:238] Processing node with 533 subtitles
+[2025-10-10 23:03:56] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 23:03:56] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 23:06:40] [INFO] [provider:72] Received response from API
+[2025-10-10 23:06:40] [INFO] [provider:89] Response: finish_reason=stop, content_length=22438 chars
+[2025-10-10 23:06:40] [INFO] [strategies:249] Node processed successfully
+[2025-10-10 23:06:40] [INFO] [strategies:238] Processing node with 533 subtitles
+[2025-10-10 23:06:40] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 23:06:40] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 23:10:26] [INFO] [provider:72] Received response from API
+[2025-10-10 23:10:26] [INFO] [provider:89] Response: finish_reason=stop, content_length=25978 chars
+[2025-10-10 23:10:26] [INFO] [strategies:249] Node processed successfully
+[2025-10-10 23:10:26] [INFO] [strategies:238] Processing node with 532 subtitles
+[2025-10-10 23:10:26] [INFO] [provider:42] OpenAIProvider chat called for model: google/gemini-2.5-pro
+[2025-10-10 23:10:26] [INFO] [provider:61] Sending request to API (attempt 1/5, non-streaming mode)...
+[2025-10-10 23:14:50] [INFO] [provider:72] Received response from API
+[2025-10-10 23:14:50] [INFO] [provider:89] Response: finish_reason=stop, content_length=25859 chars
+[2025-10-10 23:14:50] [INFO] [strategies:249] Node processed successfully
+[2025-10-10 23:41:46] [INFO] [main:60] ✓ 字幕校正成功
+[2025-10-10 23:41:47] [INFO] [main:61]   - 内容长度: 63360 字符
+[2025-10-10 23:41:48] [INFO] [main:62]   - API 调用次数: 3
+[2025-10-10 23:41:49] [INFO] [main:63]   - 总耗时: 654085 毫秒 (654.09 秒)
+[2025-10-10 23:41:56] [INFO] [main:70]   - 原始响应已保存到: test_mode\PRED-726-corrected-raw1.txt
+[2025-10-10 23:42:35] [WARNING] [main:93] 响应不是JSON格式，将整个响应视为SRT内容
+[2025-10-10 23:42:46] [INFO] [main:101]   - 校正结果已保存到: test_mode\PRED-726-uncensored-nyap2p.com.corrected.srt
+[2025-10-10 23:42:50] [INFO] [main:107]   - 改动记录已保存到: test_mode\PRED-726-corrected-differences.json
+[2025-10-10 23:42:50] [INFO] [main:108]   - 关键改动数量: 27

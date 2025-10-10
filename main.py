@@ -65,7 +65,7 @@ if __name__ == '__main__':
             # 解析并保存 JSON 结果
             try:
                 # 先保存原始内容，以便后续分析
-                raw_file = Path("test_mode/PRED-726-corrected-raw.txt")
+                raw_file = Path("test_mode/PRED-726-corrected-raw1.txt")
                 raw_file.write_text(result.content, encoding="utf-8")
                 logger.info(f"  - 原始响应已保存到: {raw_file}")
 

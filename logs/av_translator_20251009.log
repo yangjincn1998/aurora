@@ -1,0 +1,90 @@
+[2025-10-09 23:31:59] [INFO] [main:50] Starting subtitle correction...
+[2025-10-09 23:31:59] [INFO] [strategies:232] SliceSubtitleStrategy initialized with slice_size=500
+[2025-10-09 23:31:59] [INFO] [strategies:352] SliceSubtitleStrategy processing: task_type=CORRECT_SUBTITLE
+[2025-10-09 23:31:59] [INFO] [strategies:252] Slice: Subtitle divided into 4 blocks (slice_size=500)
+[2025-10-09 23:31:59] [ERROR] [main:79] 程序执行过程中发生错误: invalid literal for int() with base 10: 'ん'
+[2025-10-09 23:32:39] [INFO] [main:50] Starting subtitle correction...
+[2025-10-09 23:32:39] [INFO] [strategies:236] SliceSubtitleStrategy initialized with slice_size=500
+[2025-10-09 23:32:39] [INFO] [strategies:356] SliceSubtitleStrategy processing: task_type=CORRECT_SUBTITLE
+[2025-10-09 23:32:39] [INFO] [strategies:256] Slice: Subtitle divided into 4 blocks (slice_size=500)
+[2025-10-09 23:32:39] [INFO] [strategies:369] Slice: Processing block 1/4: lines 1-500
+[2025-10-09 23:32:39] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:32:39] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:34:08] [INFO] [main:50] Starting subtitle correction...
+[2025-10-09 23:34:08] [INFO] [strategies:236] SliceSubtitleStrategy initialized with slice_size=500
+[2025-10-09 23:34:08] [INFO] [strategies:356] SliceSubtitleStrategy processing: task_type=CORRECT_SUBTITLE
+[2025-10-09 23:34:08] [INFO] [strategies:256] Slice: Subtitle divided into 4 blocks (slice_size=500)
+[2025-10-09 23:34:08] [INFO] [strategies:369] Slice: Processing block 1/4: lines 1-500
+[2025-10-09 23:34:08] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:34:08] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:35:52] [INFO] [provider:85] Received response from API (took 192.29s)
+[2025-10-09 23:35:52] [INFO] [provider:101] Response details: finish_reason=stop, content_length=18075 chars
+[2025-10-09 23:35:52] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:35:52] [INFO] [strategies:377] Slice: ✓ Block 1/4 (lines 1-500) succeeded
+[2025-10-09 23:35:52] [INFO] [strategies:369] Slice: Processing block 2/4: lines 501-1000
+[2025-10-09 23:35:52] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:35:52] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:38:05] [INFO] [provider:85] Received response from API (took 237.76s)
+[2025-10-09 23:38:05] [INFO] [provider:101] Response details: finish_reason=stop, content_length=19643 chars
+[2025-10-09 23:38:05] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:38:05] [INFO] [strategies:377] Slice: ✓ Block 1/4 (lines 1-500) succeeded
+[2025-10-09 23:38:05] [INFO] [strategies:369] Slice: Processing block 2/4: lines 501-1000
+[2025-10-09 23:38:05] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:38:05] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:40:00] [INFO] [provider:85] Received response from API (took 248.25s)
+[2025-10-09 23:40:00] [INFO] [provider:101] Response details: finish_reason=stop, content_length=23454 chars
+[2025-10-09 23:40:00] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:40:00] [INFO] [strategies:377] Slice: ✓ Block 2/4 (lines 501-1000) succeeded
+[2025-10-09 23:40:00] [INFO] [strategies:369] Slice: Processing block 3/4: lines 1001-1500
+[2025-10-09 23:40:00] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:40:00] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:41:15] [INFO] [provider:85] Received response from API (took 189.40s)
+[2025-10-09 23:41:15] [INFO] [provider:101] Response details: finish_reason=stop, content_length=23607 chars
+[2025-10-09 23:41:15] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:41:15] [INFO] [strategies:377] Slice: ✓ Block 2/4 (lines 501-1000) succeeded
+[2025-10-09 23:41:15] [INFO] [strategies:369] Slice: Processing block 3/4: lines 1001-1500
+[2025-10-09 23:41:15] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:41:15] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:45:17] [INFO] [provider:85] Received response from API (took 317.04s)
+[2025-10-09 23:45:17] [INFO] [provider:101] Response details: finish_reason=stop, content_length=23664 chars
+[2025-10-09 23:45:17] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:45:17] [INFO] [strategies:377] Slice: ✓ Block 3/4 (lines 1001-1500) succeeded
+[2025-10-09 23:45:17] [INFO] [strategies:369] Slice: Processing block 4/4: lines 1501-1598
+[2025-10-09 23:45:17] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:45:17] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:46:08] [INFO] [provider:85] Received response from API (took 293.12s)
+[2025-10-09 23:46:08] [INFO] [provider:101] Response details: finish_reason=stop, content_length=23582 chars
+[2025-10-09 23:46:08] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-09 23:46:08] [INFO] [strategies:377] Slice: ✓ Block 3/4 (lines 1001-1500) succeeded
+[2025-10-09 23:46:08] [INFO] [strategies:369] Slice: Processing block 4/4: lines 1501-1598
+[2025-10-09 23:46:08] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:46:08] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-09 23:46:22] [ERROR] [provider:160] JSON decode error (attempt 1/5): Expecting value: line 307 column 1 (char 1683)
+[2025-10-09 23:46:22] [WARNING] [provider:162] Retrying after 3.0 seconds...
+[2025-10-09 23:46:25] [INFO] [provider:71] Sending request to API - Attempt 2/5
+[2025-10-09 23:46:43] [ERROR] [provider:160] JSON decode error (attempt 1/5): Expecting value: line 163 column 1 (char 891)
+[2025-10-09 23:46:43] [WARNING] [provider:162] Retrying after 3.0 seconds...
+[2025-10-09 23:46:46] [INFO] [provider:71] Sending request to API - Attempt 2/5
+[2025-10-09 23:47:57] [INFO] [provider:85] Received response from API (took 92.58s)
+[2025-10-09 23:47:57] [INFO] [provider:101] Response details: finish_reason=stop, content_length=4631 chars
+[2025-10-09 23:47:57] [INFO] [provider:118] ✓ Request successful on attempt 2
+[2025-10-09 23:47:57] [INFO] [strategies:377] Slice: ✓ Block 4/4 (lines 1501-1598) succeeded
+[2025-10-09 23:47:57] [INFO] [strategies:404] Slice: Overall processing complete: success=True, total_processed=4 blocks, total_unprocessed=0 blocks
+[2025-10-09 23:47:57] [ERROR] [main:79] 程序执行过程中发生错误: 'StrategyResult' object has no attribute 'success'
+[2025-10-09 23:48:33] [INFO] [provider:85] Received response from API (took 107.29s)
+[2025-10-09 23:48:33] [INFO] [provider:101] Response details: finish_reason=stop, content_length=4614 chars
+[2025-10-09 23:48:33] [INFO] [provider:118] ✓ Request successful on attempt 2
+[2025-10-09 23:48:33] [INFO] [strategies:377] Slice: ✓ Block 4/4 (lines 1501-1598) succeeded
+[2025-10-09 23:48:33] [INFO] [strategies:404] Slice: Overall processing complete: success=True, total_processed=4 blocks, total_unprocessed=0 blocks
+[2025-10-09 23:48:33] [ERROR] [main:79] 程序执行过程中发生错误: 'StrategyResult' object has no attribute 'success'
+[2025-10-09 23:55:43] [INFO] [main:50] Starting subtitle correction...
+[2025-10-09 23:55:43] [INFO] [strategies:199] NoSliceSubtitleStrategy processing: task_type=CORRECT_SUBTITLE
+[2025-10-09 23:55:43] [INFO] [strategies:92] BaseSubtitleStrategy processing: task_type=CORRECT_SUBTITLE
+[2025-10-09 23:55:43] [INFO] [provider:54] OpenAIProvider chat called for model: google/gemini-2.5-pro, max_retries: 5
+[2025-10-09 23:55:43] [INFO] [provider:71] Sending request to API - Attempt 1/5
+[2025-10-10 00:01:53] [INFO] [provider:85] Received response from API (took 370.68s)
+[2025-10-10 00:01:53] [INFO] [provider:101] Response details: finish_reason=stop, content_length=34902 chars
+[2025-10-10 00:01:53] [INFO] [provider:118] ✓ Request successful on attempt 1
+[2025-10-10 00:01:53] [INFO] [strategies:102] ✓ Successfully processed block 1-1598
+[2025-10-10 00:01:53] [INFO] [strategies:203] NoSlice: Initial processing succeeded, returning result
+[2025-10-10 00:01:53] [ERROR] [main:55] 'StrategyResult' object has no attribute 'success'

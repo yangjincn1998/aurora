@@ -26,7 +26,7 @@ class TranslateOrchestrator:
         if provider.model in Config.get_config("SLICE_MODELS", set()):
             return SliceSubtitleStrategy()
         else:
-            return NoSliceSubtitleStrategy()
+            return SliceSubtitleStrategy(slice_size=550)
 
     def correct_or_translate_subtitle(self, task_type: TaskType, metadata: Dict, text: str) -> ProcessResult:
         providers = self.providers[task_type]

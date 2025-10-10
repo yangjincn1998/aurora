@@ -3,6 +3,9 @@ import json
 import re
 import time
 from abc import ABC, abstractmethod
+from typing import List, Optional
+
+from sklearn.externals.array_api_compat.torch import remainder
 
 from models.query_result import ChatResult, ProcessResult, SrtBlockLinkedListNode
 from models.tasktype import TaskType
@@ -74,10 +77,38 @@ class BaseSubtitleStrategy(TranslateStrategy):
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_USER_QUERY,
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY
         }
+    @staticmethod
+    def _recursive_replace(data_structure, replacements):
+        """
+        递归地遍历一个嵌套的字典或列表，并替换指定的占位符字符串
+        :param data_structure: 要遍历的数据结构。
+        :param replacements: 一部字典，key是占位符，value是替换内容。
+        :return: 一个新的、替换了占位符的数据结构。
+        """
+        if isinstance(data_structure, dict):
+            new_dict = {}
+            for key, value in data_structure.items():
+                new_dict[key] = BaseSubtitleStrategy._recursive_replace(value, replacements)
+            return new_dict
+        elif isinstance(data_structure, list):
+            return [BaseSubtitleStrategy._recursive_replace(item, replacements) for item in data_structure]
+        elif isinstance(data_structure, str) and data_structure in replacements:
+            return replacements[data_structure]
+        else:
+            return data_structure
 
     @staticmethod
     def _build_messages(system_prompt, user_query, metadata, text):
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_query.format(metadata=metadata, text=text)}]
+        replacements = {
+            "metadata_value": metadata,
+            "text_value": text
+        }
+        populated_query_dict = BaseSubtitleStrategy._recursive_replace(user_query, replacements)
+        user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content_json}
+        ]
         return messages
 
     def process(self, task_type, provider, metadata, text):
@@ -188,12 +219,14 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         - 失败时，如果台词数 < 10，则跳过该节点
         - 返回更新后的 head、总调用次数、总API时间
         """
+        prev = None
         current = head
         new_head = head
 
         while current is not None:
             if current.is_processed:
                 # 已处理，跳过
+                prev = current
                 current = current.next
                 continue
 
@@ -214,6 +247,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 current.processed = result
                 current.is_processed = True
                 logger.info(f"Node processed successfully")
+                prev = current
                 current = current.next
             else:
                 # 失败，检查是否需要三等分
@@ -225,30 +259,17 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                     logger.info(f"Splitting node into 3 parts")
                     node1, node2, node3 = current.split_into_three()
 
-                    # 如果是头节点，更新 head
-                    if current == new_head:
-                        new_head = node1
-
-                    # 替换当前节点
-                    # 需要找到前一个节点来更新链接
-                    if current == head:
-                        # 如果是第一个节点
-                        current = node1
+                    if prev is None:
                         new_head = node1
                     else:
-                        # 找到前一个节点
-                        prev = new_head
-                        while prev.next != current:
-                            prev = prev.next
                         prev.next = node1
-                        current = node1
+
+                    current = node1
                 else:
-                    # 台词数 < 10，标记为失败但已处理
                     current.processed = result
                     current.is_processed = True
-                    logger.warning(f"Node has < 10 subtitles, marking as processed with failure")
+                    prev = current
                     current = current.next
-
         return new_head, total_attempt_count, total_api_time
 
 class NoSliceSubtitleStrategy(BestEffortSubtitleStrategy):
@@ -265,34 +286,53 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         super().__init__()
         self.slice_size = slice_size
 
-    def _slice_subtitle(self, srt_content):
-        """将字幕分片"""
-        lines = srt_content.split("\n\n")
-        blocks = []
-        current = ""
-        for i, line in enumerate(lines):
-            current += line + "\n\n"
-            if (i + 1) % self.slice_size == 0:
-                blocks.append(current)
-                current = ""
-        if current:  # 添加剩余内容
-            blocks.append(current)
-        return blocks
+    def _adaptive_slice_subtitle(self, srt_content: str) -> List[str]:
+        if not srt_content:
+            return []
+        all_blocks = [b for b in srt_content.strip().split("\n\n") if b.strip()]
+        total_blocks = len(all_blocks)
 
-    def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
+        if total_blocks == 0:
+            return []
+        if total_blocks <= self.slice_size:
+            return [srt_content]
+
+        num_slices = (total_blocks + self.slice_size - 1) // self.slice_size
+        base_size = total_blocks // num_slices
+        remainder = total_blocks % num_slices
+        logger.info(f"Adaptive slice: total lines number: {total_blocks}, slice size: {self.slice_size} -> "
+                   f"plan to slice to {num_slices} slices, base size: {base_size}, remainder: {remainder}")
+        final_slices = []
+        current_index = 0
+        for i in range(num_slices):
+            slice_size = base_size + 1 if i < remainder else base_size
+            start_index = current_index
+            end_index = current_index + slice_size
+
+            slice_blocks = all_blocks[start_index:end_index]
+            final_slices.append("\n\n".join(slice_blocks))
+
+            current_index = end_index
+        return final_slices
+
+    def _create_initial_linked_list(self, text: str) -> Optional[SrtBlockLinkedListNode]:
         """创建多节点链表（预分片）"""
-        blocks = self._slice_subtitle(text)
+        blocks = self._adaptive_slice_subtitle(text)
+
+        if not blocks:
+            return None
 
         # 创建链表
         head = None
         prev = None
-        for block in blocks:
-            node = SrtBlockLinkedListNode(origin=block, is_processed=False)
+        for block_content in blocks:
+            if not block_content.endswith("\n\n"):
+                block_content += "\n\n"
+            node = SrtBlockLinkedListNode(origin=block_content, is_processed=False)
             if head is None:
                 head = node
-                prev = node
             else:
                 prev.next = node
-                prev = node
+            prev = node
 
         return head

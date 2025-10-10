@@ -44,17 +44,16 @@ CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕�
 在完全理解并配置好以上规则后，请准备处理用户输入。"""
 
 # 新的用户提示（用于校正），增加了具体的风格指令
-CORRECT_SUBTITLE_USER_QUERY = """{{
+CORRECT_SUBTITLE_USER_QUERY = {
   "command": "请为我校正这份srt字幕",
-  "movie_info": {{
+  "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
     "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
-    "metadata": {metadata}
-  }},
-  "srt_block": "{text}",
+    "metadata": "metadata_value"
+  },
+  "srt_block": "text_value",
   "additional": "展示改动内容和原因"
-}}
-"""
+}
 
 
 # 新的系统提示词 (翻译任务)
@@ -86,16 +85,15 @@ TRANSLATE_SUBTITLE_PROMPT = """你是一个多阶段、专家级的字幕分析�
 在完全理解并配置好以上规则后，请准备处理用户输入。"""
 
 # 新的用户提示（用于翻译）
-TRANSLATE_SUBTITLE_USER_QUERY = """{{
+TRANSLATE_SUBTITLE_USER_QUERY = {
   "command": "请为我翻译这份srt字幕",
-  "movie_info": {{
+  "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
     "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
-    "metadata": {metadata}
-  }},
-  "srt_block": "{text}"
-}}
-"""
+    "metadata": "metadata_value"
+  },
+  "srt_block": "text_value"
+}
 
 
 DIRECTOR_SYSTEM_PROMPT = """暂时缺省"""
