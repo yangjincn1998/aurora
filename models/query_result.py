@@ -6,10 +6,26 @@ from models.tasktype import TaskType
 
 
 class ErrorType(Enum):
+    # === 不可恢复错误（应触发熔断）===
+    AUTHENTICATION_ERROR = auto()  # 认证失败（API密钥无效）
+    PERMISSION_DENIED = auto()  # 权限不足
+    INSUFFICIENT_QUOTA = auto()  # 额度不足
+    NOT_FOUND = auto()  # 资源不存在（如模型不存在）
+    CONTENT_FILTER = auto()  # 内容违规被过滤
+    UNPROCESSABLE_ENTITY = auto()  # 请求格式/参数错误
+    PAYLOAD_TOO_LARGE = auto()  # 请求体过大
+
+    # === 请求相关错误（可能需要调整请求，目前只支持一种）===
     LENGTH_LIMIT = auto()  # 输出因达到最大token限制而被截断
-    CONTENT_FILTER = auto()  # 输出因违反内容过滤策略而被阻止
-    INSUFFICIENT_RESOURCES = auto()  # 因系统资源不足请求被中断
-    OTHER = auto()  # 其他错误
+
+
+    # === 可重试错误 ===
+    RATE_LIMIT = auto()  # 速率限制（可等待后重试）
+    CONNECTION_ERROR = auto()  # 网络连接错误
+    TIMEOUT = auto()  # 请求超时
+
+    # === 其他 ===
+    OTHER = auto()  # 其他未分类错误
 
 @dataclass
 class ChatResult:

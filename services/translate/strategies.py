@@ -5,8 +5,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from sklearn.externals.array_api_compat.torch import remainder
-
 from models.query_result import ChatResult, ProcessResult, SrtBlockLinkedListNode
 from models.tasktype import TaskType
 from services.translate.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
@@ -14,42 +12,44 @@ from utils.logger import get_logger
 
 logger = get_logger("av_translator")
 
-def renumber_subtitles(srt_content: str) -> str:
-    """重新排序SRT字幕的序号"""
-    if not srt_content:
-        return srt_content
-
-    blocks = srt_content.strip().split("\n\n")
-    renumbered_blocks = []
-
-    for idx, block in enumerate(blocks, start=1):
-        if not block.strip():
-            continue
-        lines = block.split("\n")
-        if len(lines) >= 2:
-            # 替换第一行的序号
-            lines[0] = str(idx)
-            renumbered_blocks.append("\n".join(lines))
-
-    return "\n\n".join(renumbered_blocks)
-
 class TranslateStrategy(ABC):
+    """
+    翻译策略的高层接口
+    所有翻译策略都需要实现 process 方法
+    process 方法必须包含 provider 和 text 参数，其他参数可以不同
+    """
+    @abstractmethod
+    def process(self, *args, **kwargs):
+        """子类需要实现此方法，但签名可以不同"""
+        pass
+
+    def _check_provider_available(self, provider, task_type: TaskType) -> Optional[ProcessResult]:
+        """
+        检查 Provider 是否可用（熔断检查）
+        如果 Provider 已熔断，返回失败的 ProcessResult
+        否则返回 None，表示可以继续处理
+
+        这是所有 Strategy 子类的通用逻辑，用于快速失败
+        """
+        if hasattr(provider, 'available') and not provider.available:
+            logger.warning(f"Provider {provider.model} is unavailable (circuit breaker triggered), failing fast")
+            return ProcessResult(
+                task_type=task_type,
+                attempt_count=0,
+                time_taken=0,
+                content=None,
+                success=False
+            )
+        return None
+
+class SubtitleTranslateStrategy(TranslateStrategy):
+    """字幕翻译策略的基类"""
     @abstractmethod
     def process(self, task_type, provider, metadata, text):
         pass
-class BuilderMessageStrategy():
-    @staticmethod
-    def build_message_with_uuid(system_prompt, examples, query):
-        messages = []
-        hint = "\n用户的查询会以uuid开头，请忽略它"
-        messages.append({"role": "system", "content": system_prompt+hint})
-        for question, answer in examples.items():
-            messages.append({"role": "user", "content": str(uuid.uuid4())+question})
-            messages.append({"role": "assistant", "content": answer})
-        messages.append({"role": "user", "content": str(uuid.uuid4())+query})
-        return messages
 
-class MetaDataTranslateStrategy(BuilderMessageStrategy):
+class MetaDataTranslateStrategy(TranslateStrategy):
+    """元数据翻译策略"""
     def __init__(self):
         self.system_prompts = {
             TaskType.METADATA_DIRECTOR: DIRECTOR_SYSTEM_PROMPT,
@@ -61,13 +61,46 @@ class MetaDataTranslateStrategy(BuilderMessageStrategy):
             TaskType.METADATA_ACTOR: actor_examples,
             TaskType.METADATA_CATEGORY: category_examples
         }
-    def process(self, task_type, provider, text):
+
+    @staticmethod
+    def _build_message_with_uuid(system_prompt, examples, query):
+        """构建带有 UUID 前缀的消息，用于元数据翻译"""
+        messages = []
+        hint = "\n用户的查询会以uuid开头，请忽略它"
+        messages.append({"role": "system", "content": system_prompt + hint})
+        for question, answer in examples.items():
+            messages.append({"role": "user", "content": str(uuid.uuid4()) + question})
+            messages.append({"role": "assistant", "content": answer})
+        messages.append({"role": "user", "content": str(uuid.uuid4()) + query})
+        return messages
+
+    def process(self, task_type, provider, text) -> ProcessResult:
+        """
+        处理元数据翻译
+        返回 ProcessResult 以保持与其他策略的一致性
+        """
+        # 熔断检查：如果 Provider 已熔断，快速失败
+        circuit_breaker_result = self._check_provider_available(provider, task_type)
+        if circuit_breaker_result is not None:
+            return circuit_breaker_result
+
+        # 调用 Provider
         system_prompt = self.system_prompts[task_type]
         examples = self.examples.get(task_type, {})
-        messages = self.build_message_with_uuid(system_prompt, examples, text)
-        return provider.chat(messages)
+        messages = self._build_message_with_uuid(system_prompt, examples, text)
+        chat_result = provider.chat(messages)
 
-class BaseSubtitleStrategy(TranslateStrategy):
+        # 将 ChatResult 转换为 ProcessResult
+        return ProcessResult(
+            task_type=task_type,
+            attempt_count=chat_result.attempt_count,
+            time_taken=chat_result.time_taken,
+            content=chat_result.content,
+            success=chat_result.success
+        )
+
+class BaseSubtitleStrategy(SubtitleTranslateStrategy):
+    """最朴素的字幕翻译策略 - 直接调用 Provider 处理"""
     def __init__(self):
         self.system_prompts = {
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_SYSTEM_PROMPT,
@@ -77,6 +110,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_USER_QUERY,
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY
         }
+
     @staticmethod
     def _recursive_replace(data_structure, replacements):
         """
@@ -99,6 +133,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
 
     @staticmethod
     def _build_messages(system_prompt, user_query, metadata, text):
+        """构建字幕处理消息"""
         replacements = {
             "metadata_value": metadata,
             "text_value": text
@@ -112,10 +147,35 @@ class BaseSubtitleStrategy(TranslateStrategy):
         return messages
 
     def process(self, task_type, provider, metadata, text):
-        system_prompt = self.system_prompts[task_type]
-        user_query = self.user_queries[task_type]
-        messages = self._build_messages(system_prompt, user_query, metadata, text)
-        return provider.chat(messages, timeout=500)
+        pass
+
+class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
+    """
+    尽力而为的字幕处理策略
+    - 维护字幕块链表
+    - 当节点失败时，如果台词数 >= 10，则三等分后重试
+    - 子类只需实现 _create_initial_linked_list 方法来创建初始链表
+    """
+
+    @staticmethod
+    def _renumber_subtitles(srt_content: str) -> str:
+        """重新排序SRT字幕的序号"""
+        if not srt_content:
+            return srt_content
+
+        blocks = srt_content.strip().split("\n\n")
+        renumbered_blocks = []
+
+        for idx, block in enumerate(blocks, start=1):
+            if not block.strip():
+                continue
+            lines = block.split("\n")
+            if len(lines) >= 2:
+                # 替换第一行的序号
+                lines[0] = str(idx)
+                renumbered_blocks.append("\n".join(lines))
+
+        return "\n\n".join(renumbered_blocks)
 
     def _aggregate_linked_list(self, head: SrtBlockLinkedListNode, task_type: TaskType,
                                total_attempt_count: int, total_time_taken: int) -> ProcessResult:
@@ -154,7 +214,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
         if all_content_parts:
             merged_content = "\n\n".join(all_content_parts)
             # 重新排序字幕序号
-            renumbered_content = renumber_subtitles(merged_content)
+            renumbered_content = self._renumber_subtitles(merged_content)
         else:
             renumbered_content = None
 
@@ -166,14 +226,6 @@ class BaseSubtitleStrategy(TranslateStrategy):
             differences=all_differences if all_differences else None,
             success=renumbered_content is not None
         )
-
-class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
-    """
-    尽力而为的字幕处理策略基类
-    - 维护字幕块链表
-    - 当节点失败时，如果台词数 >= 10，则三等分后重试
-    - 子类只需实现 _create_initial_linked_list 方法来创建初始链表
-    """
 
     def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
         """
@@ -189,6 +241,11 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         - 如果失败且台词数 >= 10，则三等分后重试
         - 聚合所有结果并返回 StrategyResult
         """
+        # 熔断检查：如果 Provider 已熔断，快速失败
+        circuit_breaker_result = self._check_provider_available(provider, task_type)
+        if circuit_breaker_result is not None:
+            return circuit_breaker_result
+
         # Strategy 层总时间计时器
         start_time = time.time()
 
