@@ -1,16 +1,10 @@
 # prompts.py
-
-# ... (METADATA相关的PROMPT保持不变) ...
-
-# --- 字幕校正与翻译的新提示词 ---
-
-# 新的系统提示词 (已移除敏感指令)
 CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕分析与增强引擎。你的核心任务是接收AI转写的SRT字幕，并输出一个经过精准修正的最终版本。你必须严格遵循以下原则和工作流程。
 
 一、 核心原则 (Core Principles)
 1.  **上下文至上 (Context is King)**: 你的所有处理都必须基于提供的影片元数据和前后对话。
 2.  **准确性第一 (Accuracy First)**: 修正的首要目标是忠实于原文意图，特别注意修正专有名词、数字和术语。
-3.  **一致性维护 (Consistency Maintenance)**: 整个字幕文件中，角色名、关键术语的翻译必须保持前后一致。
+3.  **一致性维护 (Consistency Maintenance)**: 整个字幕文件中，角色名、关键术语的校正结果必须保持前后一致。
 4.  **格式完整性 (Format Integrity)**: 严格保持原始SRT格式，包括序号和时间轴。
 
 二、 工作流程 (Workflow)
@@ -37,7 +31,8 @@ CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕�
 {
   "command": "请为我校正这份srt字幕",
   "movie_info": { ... },
-  "srt_block": "..."
+  "srt_block": "...",
+  "instruction": "..."
   "additional": "展示改动内容和原因" // 可选,如果为 Null 则不需要展示
 }
 
@@ -48,9 +43,9 @@ CORRECT_SUBTITLE_USER_QUERY = {
   "command": "请为我校正这份srt字幕",
   "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
-    "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
     "metadata": "metadata_value"
   },
+  "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
   "srt_block": "text_value",
   "additional": "展示改动内容和原因"
 }
@@ -79,6 +74,7 @@ TRANSLATE_SUBTITLE_PROMPT = """你是一个多阶段、专家级的字幕分析�
 {
   "command": "请为我翻译这份srt字幕",
   "movie_info": { ... },
+  "instruction": "...",
   "srt_block": "..."
 }
 
@@ -89,9 +85,9 @@ TRANSLATE_SUBTITLE_USER_QUERY = {
   "command": "请为我翻译这份srt字幕",
   "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
-    "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
     "metadata": "metadata_value"
   },
+  "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
   "srt_block": "text_value"
 }
 

@@ -3,28 +3,80 @@ from models.query_result import ChatResult, ErrorType
 import openai
 from utils.logger import get_logger
 import time
-import json
 
 logger = get_logger("av_translator")
 
 class Provider(ABC):
+    """翻译服务提供者抽象基类。
+
+    定义所有翻译服务提供者必须实现的接口。
+    """
+    @property
+    @abstractmethod
+    def available(self) -> bool:
+        """检查提供者是否可用。
+
+        Returns:
+            bool: 如果提供者可用返回True，否则返回False。
+        """
+        pass
+
     @property
     @abstractmethod
     def model(self) -> str:
+        """获取模型名称。
+
+        Returns:
+            str: 使用的模型名称。
+        """
         pass
+
     @abstractmethod
     def chat(self, messages, **kwargs) -> ChatResult:
+        """发送聊天请求。
+
+        Args:
+            messages (list): 消息列表。
+            **kwargs: 额外的关键字参数。
+
+        Returns:
+            ChatResult: 聊天请求的结果。
+        """
         pass
 
 
 class OpenaiProvider(Provider):
+    """OpenAI兼容的API提供者实现。
+
+    支持OpenAI格式的API调用，包括自动重试和熔断机制。
+
+    Attributes:
+        api_key (str): API密钥。
+        base_url (str): API基础URL。
+        _model (str): 使用的模型名称。
+        timeout (int): 请求超时时间（秒）。
+        _available (bool): 提供者是否可用（熔断状态）。
+        client (openai.OpenAI): OpenAI客户端实例。
+    """
     def __init__(self, api_key, base_url, model, timeout=500):
+        """初始化OpenAI提供者。
+
+        Args:
+            api_key (str): API密钥。
+            base_url (str): API基础URL。
+            model (str): 使用的模型名称。
+            timeout (int): 请求超时时间（秒），默认500秒。
+        """
         self.api_key = api_key
         self.base_url = base_url
         self._model = model
         self.timeout = timeout
-        self.available = True
+        self._available = True
         self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)
+
+    @property
+    def available(self) -> bool:
+        return self._available
 
     @property
     def model(self):
@@ -116,21 +168,21 @@ class OpenaiProvider(Provider):
             except openai.AuthenticationError as e:
                 # 认证错误 - 不可重试（API密钥无效），触发熔断
                 logger.error(f"OpenAI API authentication error: {str(e)}")
-                self.available = False  # 触发熔断
+                self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.AUTHENTICATION_ERROR)
 
             except openai.PermissionDeniedError as e:
                 # 权限错误 - 不可重试（账户权限不足），触发熔断
                 logger.error(f"OpenAI API permission denied: {str(e)}")
-                self.available = False  # 触发熔断
+                self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PERMISSION_DENIED)
 
             except openai.NotFoundError as e:
                 # 资源未找到 - 不可重试（模型不存在等），触发熔断
                 logger.error(f"OpenAI API resource not found: {str(e)}")
-                self.available = False  # 触发熔断
+                self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.NOT_FOUND)
 
@@ -140,6 +192,15 @@ class OpenaiProvider(Provider):
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.UNPROCESSABLE_ENTITY)
 
+            except openai.APITimeoutError as e:
+                # 超时错误 - 可重试
+                logger.error(f"OpenAI API timeout error (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    continue
+                time_taken = int((time.time() - start_time) * 1000)
+                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.TIMEOUT)
             except openai.APIConnectionError as e:
                 # 连接错误 - 可重试
                 logger.error(f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {e.__cause__}")
@@ -156,7 +217,7 @@ class OpenaiProvider(Provider):
                 # 检查是否是额度不足（insufficient_quota）
                 if "insufficient_quota" in error_message.lower() or "quota" in error_message.lower():
                     logger.error(f"OpenAI API insufficient quota: {error_message}")
-                    self.available = False  # 触发熔断
+                    self._available = False  # 触发熔断
                     time_taken = int((time.time() - start_time) * 1000)
                     return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.INSUFFICIENT_QUOTA)
 
@@ -169,16 +230,6 @@ class OpenaiProvider(Provider):
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.RATE_LIMIT)
 
-            except openai.APITimeoutError as e:
-                # 超时错误 - 可重试
-                logger.error(f"OpenAI API timeout error (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    continue
-                time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.TIMEOUT)
-
             except openai.APIStatusError as e:
                 # 根据状态码进行细粒度分类
                 status_code = e.status_code
@@ -187,19 +238,19 @@ class OpenaiProvider(Provider):
                 # 应触发熔断的状态码（Provider 级别的不可恢复错误）
                 if status_code == 401:
                     logger.error(f"OpenAI API authentication error (401): {e.response.text}")
-                    self.available = False  # 触发熔断
+                    self._available = False  # 触发熔断
                     return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.AUTHENTICATION_ERROR)
                 elif status_code == 402:
                     logger.error(f"OpenAI API payment required (402): {e.response.text}")
-                    self.available = False  # 触发熔断
+                    self._available = False  # 触发熔断
                     return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.INSUFFICIENT_QUOTA)
                 elif status_code == 403:
                     logger.error(f"OpenAI API permission denied (403): {e.response.text}")
-                    self.available = False  # 触发熔断
+                    self._available = False  # 触发熔断
                     return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PERMISSION_DENIED)
                 elif status_code == 404:
                     logger.error(f"OpenAI API not found (404): {e.response.text}")
-                    self.available = False  # 触发熔断
+                    self._available = False  # 触发熔断
                     return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.NOT_FOUND)
 
                 # 请求级别错误（不触发熔断，可能通过调整请求解决）

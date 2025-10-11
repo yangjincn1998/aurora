@@ -1,13 +1,14 @@
 import uuid
 import json
-import re
 import time
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from models.query_result import ChatResult, ProcessResult, SrtBlockLinkedListNode
+from models.process_context import ProcessContext
+from models.query_result import ProcessResult, SrtBlockLinkedListNode
 from models.tasktype import TaskType
 from services.translate.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
+from services.translate.provider import Provider
 from utils.logger import get_logger
 
 logger = get_logger("av_translator")
@@ -19,11 +20,13 @@ class TranslateStrategy(ABC):
     process 方法必须包含 provider 和 text 参数，其他参数可以不同
     """
     @abstractmethod
-    def process(self, *args, **kwargs):
+    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
         """子类需要实现此方法，但签名可以不同"""
         pass
 
-    def _check_provider_available(self, provider, task_type: TaskType) -> Optional[ProcessResult]:
+
+    @staticmethod
+    def _check_provider_available(provider, task_type: TaskType) -> Optional[ProcessResult]:
         """
         检查 Provider 是否可用（熔断检查）
         如果 Provider 已熔断，返回失败的 ProcessResult
@@ -42,15 +45,17 @@ class TranslateStrategy(ABC):
             )
         return None
 
-class SubtitleTranslateStrategy(TranslateStrategy):
-    """字幕翻译策略的基类"""
-    @abstractmethod
-    def process(self, task_type, provider, metadata, text):
-        pass
-
 class MetaDataTranslateStrategy(TranslateStrategy):
-    """元数据翻译策略"""
+    """元数据翻译策略。
+
+    用于翻译导演、演员、分类等元数据信息。
+
+    Attributes:
+        system_prompts (dict): 各任务类型对应的系统提示词。
+        examples (dict): 各任务类型对应的示例。
+    """
     def __init__(self):
+        """初始化元数据翻译策略。"""
         self.system_prompts = {
             TaskType.METADATA_DIRECTOR: DIRECTOR_SYSTEM_PROMPT,
             TaskType.METADATA_ACTOR: ACTOR_SYSTEM_PROMPT,
@@ -64,7 +69,16 @@ class MetaDataTranslateStrategy(TranslateStrategy):
 
     @staticmethod
     def _build_message_with_uuid(system_prompt, examples, query):
-        """构建带有 UUID 前缀的消息，用于元数据翻译"""
+        """构建带有UUID前缀的消息，用于元数据翻译。
+
+        Args:
+            system_prompt (str): 系统提示词。
+            examples (dict): 示例字典。
+            query (str): 用户查询。
+
+        Returns:
+            list: 构建好的消息列表。
+        """
         messages = []
         hint = "\n用户的查询会以uuid开头，请忽略它"
         messages.append({"role": "system", "content": system_prompt + hint})
@@ -74,34 +88,47 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         messages.append({"role": "user", "content": str(uuid.uuid4()) + query})
         return messages
 
-    def process(self, task_type, provider, text) -> ProcessResult:
-        """
-        处理元数据翻译
-        返回 ProcessResult 以保持与其他策略的一致性
+    def process(self, provider: Provider, context:ProcessContext) -> ProcessResult:
+        """处理元数据翻译。
+
+        Args:
+            provider (Provider): 服务提供者。
+            context (ProcessContext): 处理上下文。
+
+        Returns:
+            ProcessResult: 翻译结果。
         """
         # 熔断检查：如果 Provider 已熔断，快速失败
-        circuit_breaker_result = self._check_provider_available(provider, task_type)
+        circuit_breaker_result = self._check_provider_available(provider, context.task_type)
         if circuit_breaker_result is not None:
             return circuit_breaker_result
 
         # 调用 Provider
-        system_prompt = self.system_prompts[task_type]
-        examples = self.examples.get(task_type, {})
-        messages = self._build_message_with_uuid(system_prompt, examples, text)
+        system_prompt = self.system_prompts[context.task_type]
+        examples = self.examples.get(context.task_type, {})
+        messages = self._build_message_with_uuid(system_prompt, examples, context.text_to_process)
         chat_result = provider.chat(messages)
 
         # 将 ChatResult 转换为 ProcessResult
         return ProcessResult(
-            task_type=task_type,
+            task_type=context.task_type,
             attempt_count=chat_result.attempt_count,
             time_taken=chat_result.time_taken,
             content=chat_result.content,
             success=chat_result.success
         )
 
-class BaseSubtitleStrategy(SubtitleTranslateStrategy):
-    """最朴素的字幕翻译策略 - 直接调用 Provider 处理"""
+class BaseSubtitleStrategy(TranslateStrategy):
+    """基础字幕处理策略。
+
+    最朴素的字幕翻译策略，直接调用Provider处理。
+
+    Attributes:
+        system_prompts (dict): 各任务类型对应的系统提示词。
+        user_queries (dict): 各任务类型对应的用户查询模板。
+    """
     def __init__(self):
+        """初始化基础字幕处理策略。"""
         self.system_prompts = {
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_SYSTEM_PROMPT,
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_PROMPT
@@ -113,11 +140,14 @@ class BaseSubtitleStrategy(SubtitleTranslateStrategy):
 
     @staticmethod
     def _recursive_replace(data_structure, replacements):
-        """
-        递归地遍历一个嵌套的字典或列表，并替换指定的占位符字符串
-        :param data_structure: 要遍历的数据结构。
-        :param replacements: 一部字典，key是占位符，value是替换内容。
-        :return: 一个新的、替换了占位符的数据结构。
+        """递归地遍历嵌套数据结构并替换占位符。
+
+        Args:
+            data_structure (Union[dict, list, str, Any]): 要遍历的数据结构。
+            replacements (dict): 占位符到替换内容的映射字典。
+
+        Returns:
+            Union[dict, list, str, Any]: 替换后的新数据结构。
         """
         if isinstance(data_structure, dict):
             new_dict = {}
@@ -132,11 +162,23 @@ class BaseSubtitleStrategy(SubtitleTranslateStrategy):
             return data_structure
 
     @staticmethod
-    def _build_messages(system_prompt, user_query, metadata, text):
-        """构建字幕处理消息"""
+    def _build_messages(system_prompt, user_query, context: ProcessContext, node_text: str):
+        """构建字幕处理消息。
+
+        Args:
+            system_prompt (str): 系统提示词。
+            user_query (dict): 用户查询模板。
+            context (ProcessContext): 处理上下文。
+            node_text (str): 待处理的字幕文本。
+
+        Returns:
+            list: 构建好的消息列表。
+        """
         replacements = {
-            "metadata_value": metadata,
-            "text_value": text
+            "metadata_value": context.metadata,
+            "text_value": node_text
+            #TODO:实现术语库
+            #"termbase_value":context.termbase
         }
         populated_query_dict = BaseSubtitleStrategy._recursive_replace(user_query, replacements)
         user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
@@ -146,20 +188,35 @@ class BaseSubtitleStrategy(SubtitleTranslateStrategy):
         ]
         return messages
 
-    def process(self, task_type, provider, metadata, text):
-        pass
+    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
+        """处理字幕（需由子类实现）。
+
+        Args:
+            provider (Provider): 服务提供者。
+            context (ProcessContext): 处理上下文。
+
+        Raises:
+            NotImplementedError: 子类必须实现此方法。
+        """
+        raise NotImplementedError()
 
 class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
-    """
-    尽力而为的字幕处理策略
-    - 维护字幕块链表
-    - 当节点失败时，如果台词数 >= 10，则三等分后重试
-    - 子类只需实现 _create_initial_linked_list 方法来创建初始链表
+    """尽力而为的字幕处理策略。
+
+    维护字幕块链表，当节点失败时如果台词数>=10则三等分后重试。
+    子类只需实现_create_initial_linked_list方法来创建初始链表。
     """
 
     @staticmethod
     def _renumber_subtitles(srt_content: str) -> str:
-        """重新排序SRT字幕的序号"""
+        """重新排序SRT字幕的序号。
+
+        Args:
+            srt_content (str): 原始SRT字幕内容。
+
+        Returns:
+            str: 重新编号后的SRT字幕内容。
+        """
         if not srt_content:
             return srt_content
 
@@ -179,12 +236,18 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
     def _aggregate_linked_list(self, head: SrtBlockLinkedListNode, task_type: TaskType,
                                total_attempt_count: int, total_time_taken: int) -> ProcessResult:
-        """
-        聚合链表中所有成功节点的处理结果
-        - 合并所有 content
-        - 合并所有 differences
-        - 重新排序字幕序号
-        - 使用传入的累加器作为总调用次数和总时间
+        """聚合链表中所有成功节点的处理结果。
+
+        合并所有content和differences，重新排序字幕序号。
+
+        Args:
+            head (SrtBlockLinkedListNode): 链表头节点。
+            task_type (TaskType): 任务类型。
+            total_attempt_count (int): 累计调用次数。
+            total_time_taken (int): 累计总耗时（毫秒）。
+
+        Returns:
+            ProcessResult: 聚合后的处理结果。
         """
         all_content_parts = []
         all_differences = []
@@ -228,21 +291,35 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         )
 
     def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
-        """
-        创建初始链表
-        子类需要实现此方法
+        """创建初始链表。
+
+        子类需要实现此方法。
+
+        Args:
+            text (str): 待处理的字幕文本。
+
+        Raises:
+            NotImplementedError: 子类必须实现此方法。
+
+        Returns:
+            SrtBlockLinkedListNode: 链表头节点。
         """
         raise NotImplementedError("Subclass must implement _create_initial_linked_list")
 
-    def process(self, task_type, provider, metadata, text, file_name="unknown") -> ProcessResult:
-        """
-        处理字幕，采用尽力而为策略:
-        - 创建初始链表
-        - 如果失败且台词数 >= 10，则三等分后重试
-        - 聚合所有结果并返回 StrategyResult
+    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
+        """处理字幕，采用尽力而为策略。
+
+        创建初始链表，如果失败且台词数>=10则三等分后重试，最后聚合所有结果。
+
+        Args:
+            provider (Provider): 服务提供者。
+            context (ProcessContext): 处理上下文。
+
+        Returns:
+            ProcessResult: 处理结果。
         """
         # 熔断检查：如果 Provider 已熔断，快速失败
-        circuit_breaker_result = self._check_provider_available(provider, task_type)
+        circuit_breaker_result = self._check_provider_available(provider, context.task_type)
         if circuit_breaker_result is not None:
             return circuit_breaker_result
 
@@ -250,7 +327,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         start_time = time.time()
 
         # 创建初始链表（由子类实现）
-        head = self._create_initial_linked_list(text)
+        head = self._create_initial_linked_list(context.text_to_process)
 
         # 初始化累加器
         total_attempt_count = 0
@@ -258,23 +335,31 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         # 处理链表
         head, total_attempt_count, total_api_time = self._process_linked_list_with_best_effort(
-            task_type, provider, metadata, head, total_attempt_count, total_api_time
+            context.task_type, provider, context.metadata, head, total_attempt_count, total_api_time
         )
 
         # Strategy 层总耗时
         strategy_time_taken = int((time.time() - start_time) * 1000)  # 毫秒
 
         # 聚合结果
-        return self._aggregate_linked_list(head, task_type, total_attempt_count, strategy_time_taken)
+        return self._aggregate_linked_list(head, context.task_type, total_attempt_count, strategy_time_taken)
 
     def _process_linked_list_with_best_effort(self, task_type, provider, metadata, head: SrtBlockLinkedListNode,
                                               total_attempt_count: int, total_api_time: int):
-        """
-        尽力而为地处理链表
-        - 逐个处理节点
-        - 失败时，如果台词数 >= 10，则三等分节点并插入链表
-        - 失败时，如果台词数 < 10，则跳过该节点
-        - 返回更新后的 head、总调用次数、总API时间
+        """尽力而为地处理链表。
+
+        逐个处理节点，失败时如果台词数>=10则三等分节点并插入链表。
+
+        Args:
+            task_type (TaskType): 任务类型。
+            provider (Provider): 服务提供者。
+            metadata (dict): 元数据。
+            head (SrtBlockLinkedListNode): 链表头节点。
+            total_attempt_count (int): 累计调用次数。
+            total_api_time (int): 累计API时间（毫秒）。
+
+        Returns:
+            tuple: (更新后的头节点, 总调用次数, 总API时间)。
         """
         prev = None
         current = head
@@ -330,20 +415,51 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         return new_head, total_attempt_count, total_api_time
 
 class NoSliceSubtitleStrategy(BestEffortSubtitleStrategy):
-    """不分片策略，使用尽力而为的重试机制"""
+    """不分片字幕处理策略。
+
+    将整个字幕文本作为一个节点处理，使用尽力而为的重试机制。
+    """
 
     def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
-        """创建单节点链表"""
+        """创建单节点链表。
+
+        Args:
+            text (str): 待处理的字幕文本。
+
+        Returns:
+            SrtBlockLinkedListNode: 包含整个文本的单节点链表。
+        """
         return SrtBlockLinkedListNode(origin=text, is_processed=False)
 
 class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
-    """分片策略，使用尽力而为的重试机制"""
+    """分片字幕处理策略。
+
+    将字幕文本按指定大小分片后处理，使用尽力而为的重试机制。
+
+    Attributes:
+        slice_size (int): 每个分片的字幕条目数量。
+    """
 
     def __init__(self, slice_size=200):
+        """初始化分片策略。
+
+        Args:
+            slice_size (int): 每个分片的字幕条目数量，默认200。
+        """
         super().__init__()
         self.slice_size = slice_size
 
     def _adaptive_slice_subtitle(self, srt_content: str) -> List[str]:
+        """自适应分片字幕内容。
+
+        根据字幕总数和slice_size动态计算分片方案，确保分片均匀。
+
+        Args:
+            srt_content (str): 原始字幕内容。
+
+        Returns:
+            List[str]: 分片后的字幕文本列表。
+        """
         if not srt_content:
             return []
         all_blocks = [b for b in srt_content.strip().split("\n\n") if b.strip()]
@@ -373,7 +489,14 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         return final_slices
 
     def _create_initial_linked_list(self, text: str) -> Optional[SrtBlockLinkedListNode]:
-        """创建多节点链表（预分片）"""
+        """创建多节点链表（预分片）。
+
+        Args:
+            text (str): 待处理的字幕文本。
+
+        Returns:
+            Optional[SrtBlockLinkedListNode]: 分片后的链表头节点，如果文本为空则返回None。
+        """
         blocks = self._adaptive_slice_subtitle(text)
 
         if not blocks:
