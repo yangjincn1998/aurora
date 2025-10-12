@@ -1,10 +1,10 @@
 from typing import Dict, List
 
-from models.tasktype import TaskType
-from models.query_result import ProcessResult
-from models.process_context import ProcessContext
-from services.translate.provider import Provider
-from services.translate.strategies import TranslateStrategy, MetaDataTranslateStrategy, SliceSubtitleStrategy
+from models.enums import TaskType
+from models.results import ProcessResult
+from models.context import TranslateContext
+from services.translation.provider import Provider
+from services.translation.strategies import TranslateStrategy, MetaDataTranslateStrategy, SliceSubtitleStrategy
 
 class TranslateOrchestrator:
     """
@@ -25,7 +25,7 @@ class TranslateOrchestrator:
         Returns:
           ProcessResult: 带有校正任务结果的数据类
         """
-        context = ProcessContext(
+        context = TranslateContext(
             task_type=TaskType.CORRECT_SUBTITLE,
             metadata=metadata,
             text_to_process=text,
@@ -44,7 +44,7 @@ class TranslateOrchestrator:
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
         """
-        context = ProcessContext(
+        context = TranslateContext(
             task_type=TaskType.TRANSLATE_SUBTITLE,
             metadata=metadata,
             text_to_process=text,
@@ -63,19 +63,19 @@ class TranslateOrchestrator:
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
         """
-        context = ProcessContext(
+        context = TranslateContext(
             task_type=task_type,
             text_to_process=text
         )
         return self._process_task(context)
 
-    def _process_task(self, context: ProcessContext) -> ProcessResult:
+    def _process_task(self, context: TranslateContext) -> ProcessResult:
         """处理任务的内部方法。
 
         根据任务类型选择合适的Provider和Strategy进行处理。
 
         Args:
-            context (ProcessContext): 任务上下文。
+            context (TranslateContext): 任务上下文。
 
         Returns:
             ProcessResult: 处理结果。

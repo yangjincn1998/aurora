@@ -4,11 +4,12 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from models.process_context import ProcessContext
-from models.query_result import ProcessResult, SrtBlockLinkedListNode
-from models.tasktype import TaskType
-from services.translate.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
-from services.translate.provider import Provider
+from models.context import TranslateContext
+from models.results import ProcessResult
+from data_structures.subtitle_node import SubtitleBlock
+from models.enums import TaskType
+from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
+from services.translation.provider import Provider
 from utils.logger import get_logger
 
 logger = get_logger("av_translator")
@@ -20,7 +21,7 @@ class TranslateStrategy(ABC):
     process 方法必须包含 provider 和 text 参数，其他参数可以不同
     """
     @abstractmethod
-    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """子类需要实现此方法，但签名可以不同"""
         pass
 
@@ -88,12 +89,12 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         messages.append({"role": "user", "content": str(uuid.uuid4()) + query})
         return messages
 
-    def process(self, provider: Provider, context:ProcessContext) -> ProcessResult:
+    def process(self, provider: Provider, context:TranslateContext) -> ProcessResult:
         """处理元数据翻译。
 
         Args:
             provider (Provider): 服务提供者。
-            context (ProcessContext): 处理上下文。
+            context (TranslateContext): 处理上下文。
 
         Returns:
             ProcessResult: 翻译结果。
@@ -162,13 +163,13 @@ class BaseSubtitleStrategy(TranslateStrategy):
             return data_structure
 
     @staticmethod
-    def _build_messages(system_prompt, user_query, context: ProcessContext, node_text: str):
+    def _build_messages(system_prompt, user_query, context: TranslateContext, node_text: str):
         """构建字幕处理消息。
 
         Args:
             system_prompt (str): 系统提示词。
             user_query (dict): 用户查询模板。
-            context (ProcessContext): 处理上下文。
+            context (TranslateContext): 处理上下文。
             node_text (str): 待处理的字幕文本。
 
         Returns:
@@ -188,12 +189,12 @@ class BaseSubtitleStrategy(TranslateStrategy):
         ]
         return messages
 
-    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕（需由子类实现）。
 
         Args:
             provider (Provider): 服务提供者。
-            context (ProcessContext): 处理上下文。
+            context (TranslateContext): 处理上下文。
 
         Raises:
             NotImplementedError: 子类必须实现此方法。
@@ -234,14 +235,14 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         return "\n\n".join(renumbered_blocks)
 
-    def _aggregate_linked_list(self, head: SrtBlockLinkedListNode, task_type: TaskType,
+    def _aggregate_linked_list(self, head: SubtitleBlock, task_type: TaskType,
                                total_attempt_count: int, total_time_taken: int) -> ProcessResult:
         """聚合链表中所有成功节点的处理结果。
 
         合并所有content和differences，重新排序字幕序号。
 
         Args:
-            head (SrtBlockLinkedListNode): 链表头节点。
+            head (SubtitleBlock): 链表头节点。
             task_type (TaskType): 任务类型。
             total_attempt_count (int): 累计调用次数。
             total_time_taken (int): 累计总耗时（毫秒）。
@@ -290,7 +291,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             success=renumbered_content is not None
         )
 
-    def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
+    def _create_initial_linked_list(self, text: str) -> SubtitleBlock:
         """创建初始链表。
 
         子类需要实现此方法。
@@ -302,18 +303,18 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             NotImplementedError: 子类必须实现此方法。
 
         Returns:
-            SrtBlockLinkedListNode: 链表头节点。
+            SubtitleBlock: 链表头节点。
         """
         raise NotImplementedError("Subclass must implement _create_initial_linked_list")
 
-    def process(self, provider: Provider, context: ProcessContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕，采用尽力而为策略。
 
         创建初始链表，如果失败且台词数>=10则三等分后重试，最后聚合所有结果。
 
         Args:
             provider (Provider): 服务提供者。
-            context (ProcessContext): 处理上下文。
+            context (TranslateContext): 处理上下文。
 
         Returns:
             ProcessResult: 处理结果。
@@ -344,7 +345,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         # 聚合结果
         return self._aggregate_linked_list(head, context.task_type, total_attempt_count, strategy_time_taken)
 
-    def _process_linked_list_with_best_effort(self, task_type, provider, metadata, head: SrtBlockLinkedListNode,
+    def _process_linked_list_with_best_effort(self, task_type, provider, metadata, head: SubtitleBlock,
                                               total_attempt_count: int, total_api_time: int):
         """尽力而为地处理链表。
 
@@ -354,7 +355,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             task_type (TaskType): 任务类型。
             provider (Provider): 服务提供者。
             metadata (dict): 元数据。
-            head (SrtBlockLinkedListNode): 链表头节点。
+            head (SubtitleBlock): 链表头节点。
             total_attempt_count (int): 累计调用次数。
             total_api_time (int): 累计API时间（毫秒）。
 
@@ -420,16 +421,16 @@ class NoSliceSubtitleStrategy(BestEffortSubtitleStrategy):
     将整个字幕文本作为一个节点处理，使用尽力而为的重试机制。
     """
 
-    def _create_initial_linked_list(self, text: str) -> SrtBlockLinkedListNode:
+    def _create_initial_linked_list(self, text: str) -> SubtitleBlock:
         """创建单节点链表。
 
         Args:
             text (str): 待处理的字幕文本。
 
         Returns:
-            SrtBlockLinkedListNode: 包含整个文本的单节点链表。
+            SubtitleBlock: 包含整个文本的单节点链表。
         """
-        return SrtBlockLinkedListNode(origin=text, is_processed=False)
+        return SubtitleBlock(origin=text, is_processed=False)
 
 class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
     """分片字幕处理策略。
@@ -488,14 +489,14 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
             current_index = end_index
         return final_slices
 
-    def _create_initial_linked_list(self, text: str) -> Optional[SrtBlockLinkedListNode]:
+    def _create_initial_linked_list(self, text: str) -> Optional[SubtitleBlock]:
         """创建多节点链表（预分片）。
 
         Args:
             text (str): 待处理的字幕文本。
 
         Returns:
-            Optional[SrtBlockLinkedListNode]: 分片后的链表头节点，如果文本为空则返回None。
+            Optional[SubtitleBlock]: 分片后的链表头节点，如果文本为空则返回None。
         """
         blocks = self._adaptive_slice_subtitle(text)
 
@@ -508,7 +509,7 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         for block_content in blocks:
             if not block_content.endswith("\n\n"):
                 block_content += "\n\n"
-            node = SrtBlockLinkedListNode(origin=block_content, is_processed=False)
+            node = SubtitleBlock(origin=block_content, is_processed=False)
             if head is None:
                 head = node
             else:

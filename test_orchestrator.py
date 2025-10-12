@@ -5,9 +5,9 @@ from pathlib import Path
 
 import dotenv
 import logging
-from services.translate.orchestractor import TranslateOrchestrator
-from models.tasktype import TaskType
-from services.translate.provider import Provider, OpenaiProvider
+from services.translation.orchestrator import TranslateOrchestrator
+from models.enums import TaskType
+from services.translation.provider import Provider, OpenaiProvider
 from utils.config import Config
 from utils.logger import setup_logger
 

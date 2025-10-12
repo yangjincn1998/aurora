@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from models.tasktype import TaskType
+from models.enums import TaskType
 
 
 @dataclass
-class ProcessContext:
+class TranslateContext:
     """处理上下文数据类。
 
     封装任务处理所需的上下文信息，包括任务类型、元数据和待处理文本。

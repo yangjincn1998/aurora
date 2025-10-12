@@ -2,14 +2,15 @@ import os
 from logging import getLogger
 from pathlib import Path
 
-from models.movie import Movie, Video, PiplineStage, StageStatus
-from models.query_result import ProcessResult
-from pipline_stages.base import PiplineStage, VideoPipelineStage
-from services.translate.orchestractor import TranslateOrchestrator
+from models.enums import StageStatus, PiplinePhase
+from domain.movie import Video, Movie
+from models.results import ProcessResult
+from pipeline.base import PipelineStage, VideoPipelineStage
+from services.translation.orchestrator import TranslateOrchestrator
 
 logger = getLogger(__name__)
 
-class TranslateStage(PiplineStage, VideoPipelineStage):
+class TranslateStage(PipelineStage, VideoPipelineStage):
     """字幕翻译流水线阶段。
 
     负责将视频字幕从日语翻译为中文。
@@ -30,9 +31,9 @@ class TranslateStage(PiplineStage, VideoPipelineStage):
         """获取阶段名称。
 
         Returns:
-            str: 阶段名称 "translate"。
+            str: 阶段名称 "translation"。
         """
-        return "translate"
+        return "translation"
 
     @staticmethod
     def should_execute(video: Video):
@@ -44,7 +45,7 @@ class TranslateStage(PiplineStage, VideoPipelineStage):
         Returns:
             bool: 如果翻译阶段未成功完成则返回True。
         """
-        return video.status.get(PiplineStage.TRANSLATE, StageStatus.PENDING) != StageStatus.SUCCESS
+        return video.status.get(PiplinePhase.TRANSLATE, StageStatus.PENDING) != StageStatus.SUCCESS
 
     def execute(self, movie: Movie, video: Video):
         """执行字幕翻译处理。
@@ -55,24 +56,23 @@ class TranslateStage(PiplineStage, VideoPipelineStage):
             movie (Movie): 视频所属的电影对象。
             video (Video): 待处理的视频对象。
 
-        Returns:
-            Video: 处理后的视频对象，状态和副产品已更新。
         """
-        metadata = movie.metadata.to_flat_dict()
-        text_path = video.by_products[PiplineStage.CORRECT]
+        metadata = movie.metadata.to_serializable_dict()
+        text_path = video.by_products[PiplinePhase.CORRECT]
         text = Path(text_path).read_text(encoding="utf-8")
         result: ProcessResult = self.translator.translate_subtitle(text, metadata)
         if result.success:
             processed_text = result.content
-            out_path = os.path.join("output", processed_text+"_jap.srt")
+            file_name = video.filename
+            out_path = os.path.join("output", file_name+"_jap.srt")
             logger.info(f"The translated srt will be wrote in {out_path}")
-            video.by_products[PiplineStage.TRANSLATE] = out_path
+            video.by_products[PiplinePhase.TRANSLATE] = out_path
             Path(out_path).write_text(processed_text, encoding="utf-8")
             logger.info(f"The translated srt was wrote in {out_path} successfully")
-            video.status[PiplineStage.TRANSLATE] = StageStatus.SUCCESS
+            video.status[PiplinePhase.TRANSLATE] = StageStatus.SUCCESS
         else:
-            logger.warning("Failed to translate srt")
-            video.status[PiplineStage.TRANSLATE] = StageStatus.FAILED
-        return video
+            logger.warning("Failed to translation srt")
+            video.status[PiplinePhase.TRANSLATE] = StageStatus.FAILED
+        return
 
 

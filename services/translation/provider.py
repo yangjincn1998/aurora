@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from models.query_result import ChatResult, ErrorType
+from models.results import ChatResult
+from models.enums import ErrorType
 import openai
 from utils.logger import get_logger
 import time
