@@ -2,14 +2,16 @@
 测试并记录完整的 HTTP 请求和响应
 使用 httpx 事件钩子来捕获原始报文
 """
-import os
-import dotenv
-import openai
-import httpx
 import json
-from pathlib import Path
+import os
 from datetime import datetime
-from services.translate.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
+from pathlib import Path
+
+import dotenv
+import httpx
+import openai
+
+from services.translation.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
 
 dotenv.load_dotenv()
 
@@ -124,7 +126,7 @@ print(f"Total subtitle blocks: {len(lines)}")
 print(f"Testing with FULL subtitle (no slicing)")
 print(f"Full subtitle size: {len(full_subtitle)} chars\n")
 
-# 使用与 main.py 一致的 metadata
+# 使用与 test_orchestrator.py 一致的 metadata
 metadata = {
     "director_jp": "きとるね川口",
     "director_zh": "基托鲁内 川口",

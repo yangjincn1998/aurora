@@ -82,8 +82,19 @@ class PiplinePhase(Enum):
     定义视频处理流水线中的各个阶段。
 
     Attributes:
-        CORRECT: 字幕校正阶段。
-        TRANSLATE: 字幕翻译阶段。
+        PROCESSING_METADATA: 元数据处理阶段。
+        EXTRACT_AUDIO: 音频提取阶段。
+        DENOISE_AUDIO: 音频降噪阶段。
+        TRANSCRIBE_AUDIO: 音频转写阶段。
+        CORRECT_SUBTITLE: 字幕校正阶段。
+        TRANSLATE_SUBTITLE: 字幕翻译阶段。
     """
-    CORRECT = auto()
-    TRANSLATE = auto()
+    PROCESSING_METADATA = auto()
+
+    EXTRACT_AUDIO = auto()
+    DENOISE_AUDIO = auto()
+    TRANSCRIBE_AUDIO = auto()
+
+    CORRECT_SUBTITLE = auto()
+    TRANSLATE_SUBTITLE = auto()
+    BILINGUAL_SUBTITLE = auto()

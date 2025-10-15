@@ -1,14 +1,18 @@
-import uuid
 import json
 import time
+import uuid
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from data_structures.subtitle_node import SubtitleBlock
 from models.context import TranslateContext
 from models.results import ProcessResult, ChatResult
 from data_structures.subtitle_node import SubtitleBlock
 from models.enums import TaskType
-from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
+from models.results import ProcessResult, ChatResult
+from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
+    director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, \
+    TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
 from services.translation.provider import Provider
 from utils.logger import get_logger
 
@@ -180,7 +184,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
         replacements = {
             "metadata_value": context.metadata,
             "text_value": node_text,
-            "terms_value":context.terms
+            "terms_value": context.terms,
         }
         populated_query_dict = BaseSubtitleStrategy._recursive_replace(user_query, replacements)
         user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
@@ -261,7 +265,8 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 if term['japanese'] not in history_primary_keys:
                     context.terms.append(term)
                     history_primary_keys.add(term['japanese'])
-                    logger.info(f"Updated term: {term["japanese"]} -> {term.get("recommended_chinese", "")}")
+                    term_ja, term_ch = term['japanese'], term.get('recommended_chinese', '')
+                    logger.info(f"Updated term: {term_ja} -> {term_ch}")
             return TranslateContext(
                 task_type=context.task_type,
                 metadata=context.metadata,
@@ -392,6 +397,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         """尽力而为地处理链表。
 
         逐个处理节点，失败时如果台词数>=10则三等分节点并插入链表。
+        在处理过程中动态累积术语库，使后续节点能够利用之前识别的术语。
 
         Args:
             task_type (TaskType): 任务类型。

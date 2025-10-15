@@ -44,12 +44,14 @@ class Video:
     用以储存video对象的数据。
 
     Attributes:
+        sha256 (str): 视频文件的SHA256哈希值。
         filename (str): 文件名,不带后缀。
         suffix (str): 文件后缀名。
         absolute_path (str): 文件绝对路径。
         status (Dict[PiplinePhase, StageStatus]): 文件经过各个流水线的情况。
         by_products (Dict[PiplinePhase, Any]): 流水线各阶段的副产品的存储路径。
     """
+    sha256: str
     filename: str
     suffix: str
     absolute_path: str

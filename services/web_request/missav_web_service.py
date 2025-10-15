@@ -1,13 +1,13 @@
 import re
 import time
+from logging import getLogger
+
 import cloudscraper
 from bs4 import BeautifulSoup
-from typing import List, Optional
 
 from domain.movie import Metadata
 from domain.subtitle import BilingualText, BilingualList
 from services.web_request.web_service import WebService
-from logging import getLogger
 
 logger = getLogger(__name__)
 
@@ -68,7 +68,7 @@ class MissavWebService(WebService):
             return response.text
         except Exception as e:
             self._last_request_time = time.time()
-            logger.error(f"请求 {request_url} 失败。错误: {e}")
+            logger.warning(f"请求 {request_url} 失败。错误: {e}")
             # 只有在非403/404错误时才标记服务不可用
             if "403" not in str(e) and "404" not in str(e):
                 self._available = False
@@ -241,7 +241,6 @@ class MissavWebService(WebService):
 
 if __name__ == '__main__':
     import json
-    import sys
     server = MissavWebService()
 
     # 先获取HTML响应并保存

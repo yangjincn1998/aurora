@@ -1,13 +1,15 @@
 """
-测试非流式请求，使用与 main.py 完全一致的提示词
+测试非流式请求，使用与 test_orchestrator.py 完全一致的提示词
 """
-import os
-import dotenv
-import openai
-import httpx
 import json
+import os
 from pathlib import Path
-from services.translate.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
+
+import dotenv
+import httpx
+import openai
+
+from services.translation.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
 
 dotenv.load_dotenv()
 
@@ -26,7 +28,7 @@ print(f"Total subtitle blocks: {len(lines)}")
 print(f"Testing with FULL subtitle (no slicing)")
 print(f"Full subtitle size: {len(full_subtitle)} chars\n")
 
-# 使用与 main.py 一致的 metadata
+# 使用与 test_orchestrator.py 一致的 metadata
 metadata = {
     "director_jp": "きとるね川口",
     "director_zh": "基托鲁内 川口",

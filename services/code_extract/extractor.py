@@ -1,9 +1,12 @@
 import re
 from http.client import HTTPException
+from logging import getLogger
 from pathlib import Path
 from typing import Set, Optional, List
+
+from services.web_request.missav_web_service import MissavWebService
 from services.web_request.web_service import WebService
-from logging import getLogger
+
 logger = getLogger(__name__)
 
 class CodeExtractor:
@@ -16,10 +19,12 @@ class CodeExtractor:
       第三步，向网站发送报文，确定是否成功
     Attributes：
         web_services(List[WebService]): 发送报文服务的WebService
-        prefix_path(str): 记录前缀名的文件，目前写死为service/code_extract/prefix.txt
+        prefix_path(str): 记录前缀名的文件，目前写死为service/code_extract/prefix.txt.txt
         noise_path(str): 记录噪声的文件, 目前写死为service/code_extract/noise.txt
     """
-    def __init__(self,web_servers: List[WebService], prefix_path: str = f"{__dict__}/prefix.txt", noise_path: str = f"{__dict__}/noise.txt"):
+
+    def __init__(self, web_servers: List[WebService], prefix_path: str = str(Path(__file__).parent / "prefix.txt"),
+                 noise_path: str = str(Path(__file__).parent / "noise.txt")):
         self.web_services = web_servers
         self.prefix_path = prefix_path
         self.noise_path = noise_path
@@ -95,7 +100,7 @@ class CodeExtractor:
         # --- 策略 2: 特殊模式匹配 (处理 0/00 作为分隔符) ---
         # 匹配 "字母" + "0"或"00" + "数字" 的组合
         # 例如：vrkm01477, vrprd00070
-        special_pattern = r'([A-Za-z]{2,8})(0|00)([0-9]{2,7})'
+        special_pattern = r'([A-Za-z]{2,8})(0*)([0-9]{2,7})'
         matches_special = re.findall(special_pattern, file_name, re.IGNORECASE)
 
         for letters, separator, numbers in matches_special:
@@ -110,7 +115,7 @@ class CodeExtractor:
         return sorted(list(candidates), key=len, reverse=True)
 
     @staticmethod
-    def _filte_by_prefix(candidates: List[str], prefixes: Set[str]) -> List[str]:
+    def _filter_by_prefix(candidates: List[str], prefixes: Set[str]) -> List[str]:
         """
         根据已知前缀（词牌名）对候选列表进行优先级排序。
 
@@ -155,16 +160,37 @@ class CodeExtractor:
         cleaned_name = self._wash_noises(file_name, noises)
         logger.info(f"Original name: '{file_name}' -> Cleaned name: '{cleaned_name}'")
 
+        known_prefixes = self._parse_text(str(self.prefix_path))
         # 第一步：贪婪提取
         code_candidates = self._greedy_extract_codes(cleaned_name)
         if not code_candidates:
             logger.warning(f"No potential codes found in '{cleaned_name}'.")
             return None
         logger.info(f"Found candidates: {code_candidates}")
+        if len(code_candidates) == 1:
+            logger.info(f"Only one candidate '{code_candidates[0]}' found, skipping validation.")
+            code = code_candidates[0]
+            prefix = code.split('-')[0]
+            # 将前缀写入前缀文件
+            known_prefixes.add(prefix)
+            Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
+            logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+            return code
 
         # 第二步：根据前缀排序
-        prioritized_candidates = self._filte_by_prefix(code_candidates, self.known_prefixes)
+        known_prefixes = self._parse_text(str(self.prefix_path))
+        prioritized_candidates = self._filter_by_prefix(code_candidates, known_prefixes)
         logger.info(f"Prioritized candidates: {prioritized_candidates}")
+        if len(prioritized_candidates) == 1:
+            logger.info(f"Only one prioritized candidate '{prioritized_candidates[0]}' found, skipping validation.")
+            code = prioritized_candidates[0]
+            prefix = code.split('-')[0]
+            # 将前缀写入前缀文件
+            known_prefixes.add(prefix)
+            Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
+            logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+            return code
+
 
         # 第三步：在线验证
         for candidate in prioritized_candidates:
@@ -173,7 +199,13 @@ class CodeExtractor:
                 try:
                     if service.validate_code(candidate):
                         logger.info(f"Validation successful! Final code is '{candidate}'.")
-                        return candidate
+                        code = candidate
+                        prefix = code.split('-')[0]
+                        # 将前缀写入前缀文件
+                        known_prefixes.add(prefix)
+                        Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
+                        logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+                        return code
                 except HTTPException as e:
                     logger.warning(f"Web service {service.url} failed for code '{candidate}': {e}.")
                     continue  # 尝试下一个 service
@@ -182,6 +214,16 @@ class CodeExtractor:
         return None
 
 if __name__ == "__main__":
+    # ==================== 只需添加下面这部分代码 ====================
+    import logging
+
+    logging.basicConfig(
+        level=logging.INFO,  # 设置日志级别为 INFO
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # 定义日志输出格式
+        datefmt='%Y-%m-%d %H:%M:%S'  # 定义日期格式
+    )
+    # ===============================================================
+
     test_dir = r"D:\4. Collections\6.Adult Videos\raw"
     video_suffixes = [
         '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mpg', '.mpeg'
@@ -193,8 +235,9 @@ if __name__ == "__main__":
     ]
 
     print(f"Found {len(all_videos)} videos")
+    extractor = CodeExtractor(web_servers=[MissavWebService()])
     for video in all_videos:
-        print(f"video name: {video}, extracted code: {extract_av_code(video)}")
+        print(f"video name: {video}, extracted code: {extractor.extract_av_code(video)}")
 """
 video name: sivr00315vrv18khia1.mp4, extracted code: expected:SIVR-315
 video name: sivr00315vrv18khia2.mp4, extracted code: expected:SIVR-315

@@ -2,8 +2,8 @@ import os
 from logging import getLogger
 from pathlib import Path
 
-from models.enums import StageStatus, PiplinePhase
 from domain.movie import Video, Movie
+from models.enums import StageStatus, PiplinePhase
 from models.results import ProcessResult
 from pipeline.base import PipelineStage, VideoPipelineStage
 from services.translation.orchestrator import TranslateOrchestrator
@@ -39,13 +39,13 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
     def should_execute(video: Video):
         """判断是否应该执行翻译阶段。
 
-        Args:
             video (Video): 待检查的视频对象。
+        Args:
 
         Returns:
             bool: 如果翻译阶段未成功完成则返回True。
         """
-        return video.status.get(PiplinePhase.TRANSLATE, StageStatus.PENDING) != StageStatus.SUCCESS
+        return video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING) != StageStatus.SUCCESS
 
     def execute(self, movie: Movie, video: Video):
         """执行字幕翻译处理。
@@ -58,7 +58,7 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
 
         """
         metadata = movie.metadata.to_serializable_dict()
-        text_path = video.by_products[PiplinePhase.CORRECT]
+        text_path = video.by_products[PiplinePhase.CORRECT_SUBTITLE]
         text = Path(text_path).read_text(encoding="utf-8")
         result: ProcessResult = self.translator.translate_subtitle(text, metadata)
         if result.success:
@@ -66,13 +66,14 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
             file_name = video.filename
             out_path = os.path.join("output", file_name+"_jap.srt")
             logger.info(f"The translated srt will be wrote in {out_path}")
-            video.by_products[PiplinePhase.TRANSLATE] = out_path
+            video.by_products[PiplinePhase.TRANSLATE_SUBTITLE] = out_path
+            Path(out_path).touch(exist_ok=True)
             Path(out_path).write_text(processed_text, encoding="utf-8")
             logger.info(f"The translated srt was wrote in {out_path} successfully")
-            video.status[PiplinePhase.TRANSLATE] = StageStatus.SUCCESS
+            video.status[PiplinePhase.TRANSLATE_SUBTITLE] = StageStatus.SUCCESS
         else:
             logger.warning("Failed to translation srt")
-            video.status[PiplinePhase.TRANSLATE] = StageStatus.FAILED
+            video.status[PiplinePhase.TRANSLATE_SUBTITLE] = StageStatus.FAILED
         return
 
 

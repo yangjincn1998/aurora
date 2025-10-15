@@ -1,12 +1,14 @@
 """
 测试增强的 API 客户端
 """
-import os
 import logging
-import dotenv
+import os
 from pathlib import Path
-from services.translate.api_client import OpenRouterClient
-from services.translate.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
+
+import dotenv
+from services.translation.api_client import OpenRouterClient
+
+from services.translation.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
 
 # 配置日志
 logging.basicConfig(
@@ -31,7 +33,7 @@ print(f"Total subtitle blocks: {len(lines)}")
 print(f"Testing with FULL subtitle (no slicing)")
 print(f"Full subtitle size: {len(full_subtitle)} chars\n")
 
-# 使用与 main.py 一致的 metadata
+# 使用与 test_orchestrator.py 一致的 metadata
 metadata = {
     "director_jp": "きとるね川口",
     "director_zh": "基托鲁内 川口",

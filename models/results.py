@@ -35,6 +35,7 @@ class ProcessResult:
         attempt_count (int): 调用大模型的总次数。
         time_taken (int): 总耗时（毫秒）。
         content (Optional[str]): 经过处理后的文本内容。
+        terms(Optional[Set[Dict]]): 术语提取与翻译结果列表。
         differences (Optional[List[Dict]]): 校正任务中的改动列表。
         terms(Optional[List[Term]]): 术语库列表。
         success (bool): 是否处理成功。
@@ -43,6 +44,7 @@ class ProcessResult:
     attempt_count: int  # 调用大模型的总次数
     time_taken: int  # 总耗时（毫秒）
     content: Optional[str]
+    terms: Optional[Set[Dict]] = None  # 术语提取与翻译结果
     differences: Optional[List[Dict]] = None  # 改动列表
     terms: Optional[List[Term]] = None
     success: bool = True  # 是否处理成功

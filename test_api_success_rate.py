@@ -2,14 +2,16 @@
 批量测试 OpenRouter API 成功率
 统计在多次调用中的成功率和平均重试次数
 """
-import os
 import logging
-import dotenv
+import os
 import time
-from pathlib import Path
 from datetime import datetime
-from services.translate.api_client import OpenRouterClient
-from services.translate.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
+from pathlib import Path
+
+import dotenv
+from services.translation.api_client import OpenRouterClient
+
+from services.translation.prompts import CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY
 
 # 配置日志
 logging.basicConfig(
@@ -95,7 +97,7 @@ for i in range(1, NUM_TESTS + 1):
     ) as client:
         try:
             # 记录原始的 logger，临时启用 INFO 级别以捕获重试信息
-            api_logger = logging.getLogger('services.translate.api_client')
+            api_logger = logging.getLogger('services.translation.api_client')
             original_level = api_logger.level
             api_logger.setLevel(logging.INFO)
 

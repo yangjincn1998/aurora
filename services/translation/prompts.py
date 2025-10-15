@@ -76,7 +76,7 @@ TRANSLATE_SUBTITLE_PROMPT = """你是一个多阶段、专家级的字幕分析�
 1.  **上下文至上 (Context is King)**: 你的所有处理都必须基于提供的影片元数据和前后对话。
 2.  **准确性第一 (Accuracy First)**: 修正和翻译的首要目标是忠实于原文意图。
 3.  **流畅与自然 (Fluency & Naturalness)**: 译文必须符合简体中文的口语习惯，避免生硬直译。
-4.  **一致性维护 (Consistency Maintenance)**: 角色名、关键术语的翻译必须保持前后一致。
+4.  **一致性维护 (Consistency Maintenance)**: 角色名、关键术语的翻译必须保持前后一致,用户会给出可能出现的术语与推荐翻译。
 5.  **格式完整性 (Format Integrity)**: 严格保持原始SRT格式，包括序号和时间轴。
 
 二、 工作流程 (Workflow)
@@ -103,7 +103,8 @@ TRANSLATE_SUBTITLE_USER_QUERY = {
   "command": "请为我翻译这份srt字幕",
   "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
-    "metadata": "metadata_value"
+      "metadata": "metadata_value",
+      "terms": "terms_value"
   },
   "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
   "srt_block": "text_value"

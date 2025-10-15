@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import Optional, Set, List
+from dataclasses import dataclass
+from typing import Optional, List
 
 from domain.movie import Term
 

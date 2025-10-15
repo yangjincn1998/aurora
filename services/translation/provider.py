@@ -1,9 +1,11 @@
-from abc import ABC, abstractmethod
-from models.results import ChatResult
-from models.enums import ErrorType
-import openai
-from utils.logger import get_logger
 import time
+from abc import ABC, abstractmethod
+
+import openai
+
+from models.enums import ErrorType
+from models.results import ChatResult
+from utils.logger import get_logger
 
 logger = get_logger("av_translator")
 
@@ -99,7 +101,8 @@ class OpenaiProvider(Provider):
 
         logger.info(f"OpenAIProvider chat called for model: {self.model}")
 
-        max_retries = 5
+        max_retries = 3
+
         retry_delay = 8  # 秒
 
         # 为Google模型准备的安全设置，将其设置为最低阈值

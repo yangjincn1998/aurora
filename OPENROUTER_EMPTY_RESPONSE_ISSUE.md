@@ -53,15 +53,15 @@ JSONDecodeError: Expecting value: line 619 column 1 (char 3399)
 我们创建了 `services/translate/api_client.py`，包含：
 
 ```python
-from services.translate.api_client import OpenRouterClient
+from services.translation.api_client import OpenRouterClient
 
 with OpenRouterClient(
-    base_url=base_url,
-    api_key=api_key,
-    max_retries=5,      # 最多重试 5 次
-    retry_delay=3.0,    # 每次重试间隔 3 秒
-    timeout=600.0,
-    log_dir=Path("logs")  # 保存所有响应日志
+        base_url=base_url,
+        api_key=api_key,
+        max_retries=5,  # 最多重试 5 次
+        retry_delay=3.0,  # 每次重试间隔 3 秒
+        timeout=600.0,
+        log_dir=Path("logs")  # 保存所有响应日志
 ) as client:
     response = client.chat_completion(
         model="google/gemini-2.5-pro",
@@ -150,7 +150,7 @@ pip install httpx openai
 在 `services/translate/strategies.py` 或其他调用 API 的地方：
 
 ```python
-from services.translate.api_client import OpenRouterClient
+from services.translation.api_client import OpenRouterClient
 
 # 创建客户端（建议在应用启动时创建一次）
 client = OpenRouterClient(
