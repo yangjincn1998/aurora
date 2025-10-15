@@ -144,7 +144,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
         """递归地遍历嵌套数据结构并替换占位符。
 
         Args:
-            data_structure (Union[dict, list, str, Any]): 要遍历的数据结构。
+            data_structure (Union[dict, list, set, str, Any]): 要遍历的数据结构。
             replacements (dict): 占位符到替换内容的映射字典。
 
         Returns:
@@ -157,6 +157,8 @@ class BaseSubtitleStrategy(TranslateStrategy):
             return new_dict
         elif isinstance(data_structure, list):
             return [BaseSubtitleStrategy._recursive_replace(item, replacements) for item in data_structure]
+        elif isinstance(data_structure, set):
+            return {BaseSubtitleStrategy._recursive_replace(item, replacements) for item in data_structure}
         elif isinstance(data_structure, str) and data_structure in replacements:
             return replacements[data_structure]
         else:
@@ -177,9 +179,8 @@ class BaseSubtitleStrategy(TranslateStrategy):
         """
         replacements = {
             "metadata_value": context.metadata,
-            "text_value": node_text
-            #TODO:实现术语库
-            #"termbase_value":context.termbase
+            "text_value": node_text,
+            "termbase_value":context.terms
         }
         populated_query_dict = BaseSubtitleStrategy._recursive_replace(user_query, replacements)
         user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)

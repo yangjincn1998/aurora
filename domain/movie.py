@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field, fields
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Set
 
 from models.enums import StageStatus, PiplinePhase
-from domain.subtitle import BilingualText, BilingualList
+from domain.subtitle import BilingualText, BilingualList, Serializable
 
 
 @dataclass
-class Metadata:
+class Metadata(Serializable):
     """影片元数据数据类。
 
     存储影片的标题、发布日期、导演、分类、演员等元数据信息。
@@ -37,30 +37,24 @@ class Metadata:
         """递归地将BilingualText和BilingualList转换为序列化的结构。
 
         Args:
-            value (Union[list, BilingualText, BilingualList, Any]): 待转换的值。
+            value (Union[list, set, Serializable, Any]): 待转换的值。
 
         Returns:
             Union[list, dict, Any]: 转换后的数据结构。
         """
         if isinstance(value, list):
             return [Metadata._to_serializable_structure_recursive(v) for v in value]
-        elif isinstance(value, BilingualText):
-            translate_dict = {"japanese": value.original}
-            if value.translated:
-                translate_dict["chinese"] = value.translated
-            return translate_dict
-        elif isinstance(value, BilingualList):
-            translate_dict = {"japanese": value.original}
-            if value.translated:
-                translate_dict["chinese"] = value.translated
-            return translate_dict
+        elif isinstance(value, set):
+            return {Metadata._to_serializable_structure_recursive(v) for v in value}
+        elif isinstance(value, Serializable):
+            return value.to_serializable_dict()
         else:
             return value
 
     def to_serializable_dict(self) -> dict:
         """将元数据转换为序列化的字典格式。
 
-        将所有非None字段转换为字典，其中TranslateText会被转换为包含
+        将所有非None字段转换为字典，其中BilingualText和BilingualList会被转换为包含
         japanese和chinese键的字典。
 
         Returns:
@@ -110,5 +104,5 @@ class Movie:
     """
     code: str
     metadata: Optional[Metadata] = None
+    terms: Set[BilingualText] = field(default_factory=set)
     videos: List[Video] = field(default_factory=list)
-    #TODO:添加术语库

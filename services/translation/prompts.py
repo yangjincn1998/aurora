@@ -15,8 +15,15 @@ CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕�
     - **人名/专有名词**: 结合元数据修正AI无法识别的名称。
       【案例】 错误: 顔のさん。元数据: 演员为管野静香 (Kanno Shizuka)。修正逻辑: AI将 "Kanno-san" 误听为 "Kao no san"。修正后: 管野さん。
     - **无意义/乱码内容**: 对于片头可能存在的广告、噪音或转写失败的文本，直接忽略并舍弃该字幕块。
+    - **专有词语一致性**: 如果字幕中出现了专有名词，必须保证这些专有名词上下文一直保持一致。
+      【案例】 错误: "宇宙村が日本に入ってきた"、"絶対にえむらに故郷を破壊させない！" 上下文信息: 该片为特摄题材，且结合文中多个意义不明且发音相近的词语("宇宙村"，"えむら")，推测是反派的名字Ue-Mura，按照特摄的命名习惯，以片假名形式写为ウエムラ.
     - **提前终止**：如果用户提供的ai转写文本质量过差，有大量无意义的内容，应该提前中止校正，并告诉用户
-3.  **格式化输出 (Formatted Output)**: 输出以json格式，indent=2。包含字段:
+3.  **专有词语提取 (Terminology Extraction)**: 
+    - 在修正过程中，识别出没有在用户输入的元数据和术语中包含关键的专有名词。
+    - 基于对影片类型和上下文的深刻理解，为每一个识别出的日文术语，提供一个最贴切、最自然的**简体中文推荐译名**。
+从用户提供的[具体任务指令]中提取并优先考虑专有词语和术语的正确性。
+    如果字幕中出现了用户输入的
+4.  **格式化输出 (Formatted Output)**: 输出以json格式，indent=2。包含字段:
     - `"content"`(string):根据任务指令，以标准的SRT格式输出处理结果。
     - `"success"`(bool):是否校正成功，即是否没有提前中止
     - `"error"`(enum["Low Quality", ...], optional)：提前终止的原因, 例如ai转写字幕质量过差等
@@ -25,12 +32,16 @@ CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕�
       - `"original"`(string): 原始文本
       - `"corrected"`(string): 校正后文本
       - `"reason"`(string): 校正原因说明
+    - `"terms"`(dict): 识别到的不在用户输入的专有名词和元数据中的专有名词列表:
+        - `"literal"`(string): 专有名词的字面值
+        - `"recommendation"`(string): 推荐的简体中文译名
+        - `"description"`(string): 专有名词的简要介绍（如果能从上下文中推断出）
 
 三、 输入格式模板 (Input Template)
 你将接收到以下格式的用户输入：
 {
   "command": "请为我校正这份srt字幕",
-  "movie_info": { ... },
+  "movie_info": { ... }, // 包含影片的元数据和已经识别的专有名词
   "srt_block": "...",
   "instruction": "..."
   "additional": "展示改动内容和原因" // 可选,如果为 Null 则不需要展示
@@ -43,7 +54,8 @@ CORRECT_SUBTITLE_USER_QUERY = {
   "command": "请为我校正这份srt字幕",
   "movie_info": {
     "source": "这部影片的来源是一部日本成人电影",
-    "metadata": "metadata_value"
+    "metadata": "metadata_value",
+    "terms": "terms_value"
   },
   "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
   "srt_block": "text_value",
