@@ -65,7 +65,7 @@ CORRECT_SUBTITLE_USER_QUERY = {
   },
   "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现.",
   "srt_block": "text_value",
-  "additional": "展示改动内容和原因"
+    "additional": None
 }
 
 

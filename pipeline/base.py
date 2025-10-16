@@ -20,7 +20,6 @@ class PipelineStage(ABC):
         """
         pass
 
-    @abstractmethod
     def should_execute(self, *args, **kwargs) -> bool:
         """判断当前阶段是否应该执行。
 

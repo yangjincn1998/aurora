@@ -126,7 +126,6 @@ class OpenaiProvider(Provider):
                     messages=messages,
                     stream=False,  # 关键改动：使用非流式
                     extra_body=safety_settings,
-                    response_format={"type":"json_object"},
                     **kwargs
                 )
 

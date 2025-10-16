@@ -6,8 +6,6 @@ from typing import List, Optional
 
 from data_structures.subtitle_node import SubtitleBlock
 from models.context import TranslateContext
-from models.results import ProcessResult, ChatResult
-from data_structures.subtitle_node import SubtitleBlock
 from models.enums import TaskType
 from models.results import ProcessResult, ChatResult
 from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
@@ -427,7 +425,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             messages = self._build_messages(system_prompt, user_query, context, current.origin)
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
-            result = provider.chat(messages, timeout=500)
+            result = provider.chat(messages, timeout=500, response_format={"type": "json_object"})
 
             # 累加调用次数和API时间（无论成功失败）
             total_attempt_count += result.attempt_count

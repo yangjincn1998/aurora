@@ -26,8 +26,7 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
         """
         self.translator = translator
 
-    @staticmethod
-    def name():
+    def name(self):
         """获取阶段名称。
 
         Returns:
