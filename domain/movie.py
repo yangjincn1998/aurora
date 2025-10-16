@@ -1,9 +1,13 @@
 from dataclasses import dataclass, field, fields
-from typing import Optional, List, Dict, Any, Union, Set
+from typing import Optional, List, Dict, Any, Union, Set, TypedDict, NotRequired
 
 from models.enums import StageStatus, PiplinePhase
 from domain.subtitle import BilingualText, BilingualList, Serializable
 
+class Term(TypedDict):
+    japanese: str
+    recommended_chinese: NotRequired[str]
+    description: NotRequired[str]
 
 @dataclass
 class Metadata(Serializable):
@@ -31,44 +35,6 @@ class Metadata(Serializable):
     categories: Union[List[BilingualText], BilingualList, None] = None
     actors: List[BilingualText] = field(default_factory=list)
     actresses: List[BilingualText] = field(default_factory=list)
-
-    @staticmethod
-    def _to_serializable_structure_recursive(value):
-        """递归地将BilingualText和BilingualList转换为序列化的结构。
-
-        Args:
-            value (Union[list, set, Serializable, Any]): 待转换的值。
-
-        Returns:
-            Union[list, dict, Any]: 转换后的数据结构。
-        """
-        if isinstance(value, list):
-            return [Metadata._to_serializable_structure_recursive(v) for v in value]
-        elif isinstance(value, set):
-            return {Metadata._to_serializable_structure_recursive(v) for v in value}
-        elif isinstance(value, Serializable):
-            return value.to_serializable_dict()
-        else:
-            return value
-
-    def to_serializable_dict(self) -> dict:
-        """将元数据转换为序列化的字典格式。
-
-        将所有非None字段转换为字典，其中BilingualText和BilingualList会被转换为包含
-        japanese和chinese键的字典。
-
-        Returns:
-            dict: 扁平化的元数据字典。
-        """
-        flat_dict = {}
-        for field in fields(self):
-            field_name = field.name
-            value = getattr(self, field_name)
-
-            if value is None:
-                continue
-            flat_dict[field_name] = self._to_serializable_structure_recursive(value)
-        return flat_dict
 
 
 @dataclass
@@ -100,9 +66,10 @@ class Movie:
     Attributes:
         code (str): 电影番号。
         metadata (Optional[domain.movie.Metadata]): 电影元数据。
+        terms (List[Term]): 术语库列表。
         videos (List[Video]): 关联的视频文件列表。
     """
     code: str
     metadata: Optional[Metadata] = None
-    terms: Set[BilingualText] = field(default_factory=set)
+    terms: List[Term] = field(default_factory=list)
     videos: List[Video] = field(default_factory=list)

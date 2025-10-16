@@ -1,6 +1,7 @@
-from dataclasses import dataclass
-from typing import Optional, Set
-from domain.subtitle import BilingualText
+from dataclasses import dataclass, field
+from typing import Optional, Set, List
+
+from domain.movie import Term
 
 from models.enums import TaskType
 
@@ -14,10 +15,10 @@ class TranslateContext:
     Attributes:
         task_type (TaskType): 任务类别。
         metadata (Optional[dict]): 任务相关的元数据。
-        terms (Optional[Set[BilingualText]]): 术语库集合。
+        terms (Optional[List[Term]]): 术语库集合。
         text_to_process (Optional[str]): 待处理的文本内容。
     """
     task_type: TaskType
     metadata: Optional[dict] = None
-    terms: Optional[Set[BilingualText]] = None
+    terms: Optional[List[Term]] = None
     text_to_process: Optional[str] = None

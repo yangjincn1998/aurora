@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Set
 
+from domain.movie import Term
 from models.enums import TaskType, ErrorType
 
 
@@ -35,6 +36,7 @@ class ProcessResult:
         time_taken (int): 总耗时（毫秒）。
         content (Optional[str]): 经过处理后的文本内容。
         differences (Optional[List[Dict]]): 校正任务中的改动列表。
+        terms(Optional[List[Term]]): 术语库列表。
         success (bool): 是否处理成功。
     """
     task_type: TaskType
@@ -42,4 +44,5 @@ class ProcessResult:
     time_taken: int  # 总耗时（毫秒）
     content: Optional[str]
     differences: Optional[List[Dict]] = None  # 改动列表
+    terms: Optional[List[Term]] = None
     success: bool = True  # 是否处理成功

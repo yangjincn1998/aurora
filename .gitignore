@@ -1,4 +1,4 @@
 .env
-./.idea
-./.claude
+.idea
+.claude
 ./__pycache

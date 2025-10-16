@@ -1,6 +1,6 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from domain.subtitle import BilingualText
+from domain.movie import Term
 from models.enums import TaskType
 from models.results import ProcessResult
 from models.context import TranslateContext
@@ -16,14 +16,14 @@ class TranslateOrchestrator:
     def __init__(self, provider_map: Dict[TaskType, List[Provider]]):
         self.provider_map = provider_map
 
-    def correct_subtitle(self, text: str, metadata: dict, terms: dict) -> ProcessResult:
+    def correct_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
         """
         校正字幕的专用接口
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文
         Args:
             text(str): 待校正的字幕文本
             metadata(dict)： 关于字幕的元数据
-            terms(set[Bilingual]): 术语库
+            terms(Optional[List[Term]]): 术语库
         Returns:
             ProcessResult: 带有校正任务结果的数据类
         """
@@ -35,7 +35,7 @@ class TranslateOrchestrator:
         )
         return self._process_task(context)
 
-    def translate_subtitle(self, text: str, metadata: dict, terms:set[BilingualText]=None) -> ProcessResult:
+    def translate_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
         """翻译字幕的专用接口。
 
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文。
@@ -43,7 +43,7 @@ class TranslateOrchestrator:
         Args:
             text (str): 待翻译的字幕文本。
             metadata (dict): 关于字幕的元数据。
-            terms(set[Bilingual]): 关于字幕的术语库
+            terms(Optional[List[Term]]): 关于字幕的术语库
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
         """
@@ -106,7 +106,7 @@ class TranslateOrchestrator:
             TranslateStrategy: 选中的翻译策略实例。
         """
         if task_type == TaskType.CORRECT_SUBTITLE:
-            return SliceSubtitleStrategy(slice_size=550)
+            return SliceSubtitleStrategy(slice_size=500)
         elif task_type == TaskType.TRANSLATE_SUBTITLE:
             return SliceSubtitleStrategy(slice_size=550)
         else:

@@ -1,16 +1,43 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Optional, List
 
-
+@dataclass
 class Serializable:
     """可序列化接口。
 
     定义一个接口，要求实现to_serializable_dict方法，
     以便将对象转换为可序列化的字典格式。
     """
-    def to_serializable_dict(self) -> dict:
-        raise NotImplementedError("Subclasses must implement to_serializable_dict method.")
+    def _to_serializable_structure_recursive(self, value):
+        """递归地将Serializable子类转换为序列化的结构。
 
+        Args:
+            value (Union[list, set, Serializable, Any]): 待转换的值。
+
+        Returns:
+            Union[list, dict, Any]: 转换后的数据结构。
+        """
+        if isinstance(value, list):
+            return [self._to_serializable_structure_recursive(v) for v in value]
+        elif isinstance(value, set):
+            return {self._to_serializable_structure_recursive(v) for v in value}
+        elif isinstance(value, dict):
+            return {k: self._to_serializable_structure_recursive(v) for k, v in value.items()}
+        elif isinstance(value, tuple):
+            return tuple(self._to_serializable_structure_recursive(v) for v in value)
+        elif isinstance(value, Serializable):
+            return value.to_serializable_dict()
+        else:
+            return value
+
+    def to_serializable_dict(self) -> dict:
+        """将对象转换为可序列化的字典格式。"""
+        serial_dict = {}
+        for field in fields(self):
+            field_name = field.name
+            value = getattr(self, field_name)
+            serial_dict[field_name] = self._to_serializable_structure_recursive(value)
+        return serial_dict
 
 @dataclass
 class BilingualText(Serializable):
@@ -24,17 +51,6 @@ class BilingualText(Serializable):
     """
     original: str
     translated: Optional[str] = None
-
-    def to_serializable_dict(self) -> dict:
-        """将双语文本转换为可序列化的字典。
-
-        Returns:
-            dict: 包含 japanese 和 chinese（如果已翻译）的字典。
-        """
-        result = {"japanese": self.original}
-        if self.translated:
-            result["chinese"] = self.translated
-        return result
 
 
 @dataclass
@@ -50,14 +66,3 @@ class BilingualList(Serializable):
     """
     original: List[str]
     translated: Optional[List[str]] = None
-
-    def to_serializable_dict(self) -> dict:
-        """将双语列表转换为可序列化的字典。
-
-        Returns:
-            dict: 包含 japanese 和 chinese（如果已翻译）的字典。
-        """
-        result = {"japanese": self.original}
-        if self.translated:
-            result["chinese"] = self.translated
-        return result

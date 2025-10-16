@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from models.context import TranslateContext
-from models.results import ProcessResult
+from models.results import ProcessResult, ChatResult
 from data_structures.subtitle_node import SubtitleBlock
 from models.enums import TaskType
 from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
@@ -180,7 +180,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
         replacements = {
             "metadata_value": context.metadata,
             "text_value": node_text,
-            "termbase_value":context.terms
+            "terms_value":context.terms
         }
         populated_query_dict = BaseSubtitleStrategy._recursive_replace(user_query, replacements)
         user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
@@ -236,6 +236,41 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         return "\n\n".join(renumbered_blocks)
 
+    @staticmethod
+    def _update_context(context: TranslateContext, chat_result: ChatResult) -> TranslateContext:
+        """根据最新的ChatResult更新TranslateContext。
+
+        Args:
+            context (TranslateContext): 当前的处理上下文。
+            chat_result (ChatResult): 最新的聊天结果。
+
+        Returns:
+            TranslateContext: 更新后的处理上下文。
+        """
+        if not chat_result.success or not chat_result.content:
+            return context
+
+        try:
+            result_json = json.loads(chat_result.content)
+            result_terms = result_json.get("terms", [])
+            if not result_terms:
+                return context
+            # 以术语中的 japanese 作为主键
+            history_primary_keys = {term['japanese'] for term in context.terms} if context.terms else set()
+            for term in result_terms:
+                if term['japanese'] not in history_primary_keys:
+                    context.terms.append(term)
+                    history_primary_keys.add(term['japanese'])
+                    logger.info(f"Updated term: {term["japanese"]} -> {term.get("recommended_chinese", "")}")
+            return TranslateContext(
+                task_type=context.task_type,
+                metadata=context.metadata,
+                terms=context.terms,
+                text_to_process=context.text_to_process
+            )
+        except json.JSONDecodeError:
+            return context
+
     def _aggregate_linked_list(self, head: SubtitleBlock, task_type: TaskType,
                                total_attempt_count: int, total_time_taken: int) -> ProcessResult:
         """聚合链表中所有成功节点的处理结果。
@@ -253,6 +288,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         """
         all_content_parts = []
         all_differences = []
+        all_terms = []
 
         # 遍历链表，只收集成功节点的内容
         current = head
@@ -269,6 +305,10 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                     # 收集 differences
                     if "differences" in result_json and result_json["differences"]:
                         all_differences.extend(result_json["differences"])
+
+                    # 收集 terms
+                    if "terms" in result_json and result_json["terms"]:
+                        all_terms.extend(result_json["terms"])
 
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse JSON from processed content: {e}")
@@ -288,6 +328,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             attempt_count=total_attempt_count,
             time_taken=total_time_taken,
             content=renumbered_content,
+            terms=all_terms if all_terms else None,
             differences=all_differences if all_differences else None,
             success=renumbered_content is not None
         )
@@ -337,7 +378,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         # 处理链表
         head, total_attempt_count, total_api_time = self._process_linked_list_with_best_effort(
-            context.task_type, provider, context.metadata, head, total_attempt_count, total_api_time
+            context.task_type, provider, context, head, total_attempt_count, total_api_time
         )
 
         # Strategy 层总耗时
@@ -346,7 +387,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         # 聚合结果
         return self._aggregate_linked_list(head, context.task_type, total_attempt_count, strategy_time_taken)
 
-    def _process_linked_list_with_best_effort(self, task_type, provider, metadata, head: SubtitleBlock,
+    def _process_linked_list_with_best_effort(self, task_type, provider, context, head: SubtitleBlock,
                                               total_attempt_count: int, total_api_time: int):
         """尽力而为地处理链表。
 
@@ -355,7 +396,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         Args:
             task_type (TaskType): 任务类型。
             provider (Provider): 服务提供者。
-            metadata (dict): 元数据。
+            context (TranslateContext): 元数据。
             head (SubtitleBlock): 链表头节点。
             total_attempt_count (int): 累计调用次数。
             total_api_time (int): 累计API时间（毫秒）。
@@ -377,7 +418,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             # 处理当前节点
             system_prompt = self.system_prompts[task_type]
             user_query = self.user_queries[task_type]
-            messages = self._build_messages(system_prompt, user_query, metadata, current.origin)
+            messages = self._build_messages(system_prompt, user_query, context, current.origin)
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
             result = provider.chat(messages, timeout=500)
@@ -390,6 +431,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 # 成功，标记为已处理
                 current.processed = result
                 current.is_processed = True
+                context = self._update_context(context, result)
                 logger.info(f"Node processed successfully")
                 prev = current
                 current = current.next
