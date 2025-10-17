@@ -8,9 +8,9 @@ from bs4 import BeautifulSoup
 from domain.movie import Metadata
 from domain.subtitle import BilingualText, BilingualList
 from services.web_request.web_service import WebService
+from utils.logger import get_logger
 
-logger = getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class MissavWebService(WebService):
     """

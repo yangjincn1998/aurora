@@ -7,9 +7,9 @@ from models.enums import StageStatus, PiplinePhase
 from models.results import ProcessResult
 from pipeline.base import PipelineStage, VideoPipelineStage
 from services.translation.orchestrator import TranslateOrchestrator
+from utils.logger import get_logger
 
-logger = getLogger(__name__)
-
+logger = get_logger(__name__)
 class TranslateStage(PipelineStage, VideoPipelineStage):
     """字幕翻译流水线阶段。
 

@@ -8,9 +8,9 @@ from domain.movie import Movie, Video
 from services.code_extract.extractor import CodeExtractor
 from services.pipeline.manifest import Manifest
 from utils.file_utils import calculate_partial_sha256
+from utils.logger import get_logger
 
-logger = getLogger(__name__)
-
+logger = get_logger(__name__)
 class Pipline:
     def __init__(self,
                  movie_stages: List[MoviePipelineStage],

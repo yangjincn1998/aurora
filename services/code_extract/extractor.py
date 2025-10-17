@@ -6,9 +6,9 @@ from typing import Set, Optional, List
 
 from services.web_request.missav_web_service import MissavWebService
 from services.web_request.web_service import WebService
+from utils.logger import get_logger
 
-logger = getLogger(__name__)
-
+logger = get_logger(__name__)
 class CodeExtractor:
     """
     用于从文件名中提取番号的服务类，核心服务extract_av_code
