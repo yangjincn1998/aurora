@@ -23,12 +23,16 @@ class PipelineContext:
     3. 保持 Stage 的功能完整性（如写入数据库）
 
     Attributes:
+        movie_code(str): 影片代码
         manifest (Manifest): 清单文件管理对象，唯一实例
         output_dir (str): 副产品输出路径目录，唯一实例
         translator (TranslateOrchestrator): 所以翻译活动要用到的翻译编排器
+        langfuse_session_id (str|None): Langfuse 会话 ID，用于跟踪翻译请求
     """
     manifest: Manifest
     translator: TranslateOrchestrator
+    movie_code: str = ""
+    langfuse_session_id: str | None = None
     output_dir: str = os.path.join(os.getcwd(), "output")
 
     # ========== Movie 相关操作 ==========

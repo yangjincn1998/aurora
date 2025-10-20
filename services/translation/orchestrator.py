@@ -83,7 +83,8 @@ class TranslateOrchestrator:
         return cls(provider_map)
 
     @observe
-    def correct_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
+    def correct_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None,
+                         stream: bool = False) -> ProcessResult:
         """
         校正字幕的专用接口
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文
@@ -91,6 +92,7 @@ class TranslateOrchestrator:
             text(str): 待校正的字幕文本
             metadata(dict)： 关于字幕的元数据
             terms(Optional[List[Term]]): 术语库
+            stream(bool): 是否使用流式调用，默认False
         Returns:
             ProcessResult: 带有校正任务结果的数据类
         """
@@ -100,10 +102,11 @@ class TranslateOrchestrator:
             text_to_process=text,
             terms=terms
         )
-        return self._process_task(context)
+        return self._process_task(context, stream=stream)
 
     @observe
-    def translate_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
+    def translate_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None,
+                           stream: bool = False) -> ProcessResult:
         """翻译字幕的专用接口。
 
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文。
@@ -112,6 +115,7 @@ class TranslateOrchestrator:
             text (str): 待翻译的字幕文本。
             metadata (dict): 关于字幕的元数据。
             terms(Optional[List[Term]]): 关于字幕的术语库
+            stream(bool): 是否使用流式调用，默认False
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
         """
@@ -121,17 +125,18 @@ class TranslateOrchestrator:
             terms=terms,
             text_to_process=text,
         )
-        return self._process_task(context)
+        return self._process_task(context, stream=stream)
 
     @observe
     def translate_title(self, text: str, actors: List[Dict] | None = None,
-                        actress: List[Dict] | None = None) -> ProcessResult:
+                        actress: List[Dict] | None = None, stream: bool = False) -> ProcessResult:
         """翻译标题的专用接口。
 
         Args:
             text (str): 待翻译的文本。
             actors (Optional[List[Dict]]): 相关演员列表。
             actress (Optional[List[Dict]]): 相关女优列表。
+            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -142,17 +147,18 @@ class TranslateOrchestrator:
             actors=actors,
             actress=actress
         )
-        return self._process_task(context)
+        return self._process_task(context, stream=stream)
 
     @observe
     def translate_synopsis(self, text: str, actors: List[Dict] | None = None,
-                           actress: List[Dict] | None = None) -> ProcessResult:
+                           actress: List[Dict] | None = None, stream: bool = False) -> ProcessResult:
         """翻译简介的专用接口。
 
         Args:
             text (str): 待翻译的文本。
             actors (Optional[List[Dict]]): 相关演员列表。
             actress (Optional[List[Dict]]): 相关女优列表。
+            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -163,15 +169,16 @@ class TranslateOrchestrator:
             actors=actors,
             actress=actress
         )
-        return self._process_task(context)
+        return self._process_task(context, stream=stream)
 
     @observe
-    def translate_generic_metadata(self, task_type: TaskType, text: str) -> ProcessResult:
+    def translate_generic_metadata(self, task_type: TaskType, text: str, stream: bool = False) -> ProcessResult:
         """翻译元数据的专用接口。
 
         Args:
             task_type (TaskType): 元数据任务类型（导演、演员、分类、片商等）。
             text (str): 待翻译的文本。
+            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -180,15 +187,16 @@ class TranslateOrchestrator:
             task_type=task_type,
             text_to_process=text,
         )
-        return self._process_task(context)
+        return self._process_task(context, stream=stream)
 
-    def _process_task(self, context: TranslateContext) -> ProcessResult:
+    def _process_task(self, context: TranslateContext, stream: bool = False) -> ProcessResult:
         """处理任务的内部方法。
 
         根据任务类型选择合适的Provider和Strategy进行处理。
 
         Args:
             context (TranslateContext): 任务上下文。
+            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 处理结果。
@@ -199,7 +207,7 @@ class TranslateOrchestrator:
 
         for provider in providers:
             strategy = self._select_strategy(provider, context.task_type)
-            result = strategy.process(provider, context)
+            result = strategy.process(provider, context, stream=stream)
 
             if result and result.success:
                 return result

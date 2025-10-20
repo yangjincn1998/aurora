@@ -1,29 +1,26 @@
 import os
+from datetime import datetime
 from pathlib import Path
 
+from langfuse import get_client, observe
+
+from base import VideoPipelineStage
+from context import PipelineContext
 from domain.movie import Video, Movie
-from models.enums import StageStatus, PiplinePhase
+from models.enums import StageStatus, PiplinePhase, TaskType
 from models.results import ProcessResult
-from pipeline.base import PipelineStage, VideoPipelineStage
+from services.pipeline.manifest import SQLiteManifest
 from services.translation.orchestrator import TranslateOrchestrator
+from services.translation.provider import OpenaiProvider
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-class TranslateStage(PipelineStage, VideoPipelineStage):
+
+
+class TranslateStage(VideoPipelineStage):
     """字幕翻译流水线阶段。
 
-    负责将视频字幕从日语翻译为中文。
-
-    Attributes:
-        translator (TranslateOrchestrator): 翻译服务协调器。
-    """
-    def __init__(self, translator: TranslateOrchestrator):
-        """初始化翻译阶段。
-
-        Args:
-            translator (TranslateOrchestrator): 翻译服务协调器。
-        """
-        self.translator = translator
+    负责将视频字幕从日语翻译为中文。"""
 
     def name(self):
         """获取阶段名称。
@@ -33,19 +30,20 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
         """
         return "translation"
 
-    @staticmethod
-    def should_execute(video: Video):
+    def should_execute(self, video: Video, context: PipelineContext):
         """判断是否应该执行翻译阶段。
 
-            video (Video): 待检查的视频对象。
         Args:
+            video (Video): 待检查的视频对象。
+            context(PipelineContext):占位。
 
         Returns:
             bool: 如果翻译阶段未成功完成则返回True。
         """
         return video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING) != StageStatus.SUCCESS
 
-    def execute(self, movie: Movie, video: Video):
+    @observe
+    def execute(self, movie: Movie, video: Video, context: PipelineContext, stream=False):
         """执行字幕翻译处理。
 
         读取校正后的字幕文件，使用翻译服务进行翻译，并将结果保存到输出文件。
@@ -53,16 +51,22 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
         Args:
             movie (Movie): 视频所属的电影对象。
             video (Video): 待处理的视频对象。
+            context (PipelineContext): 流水线上下文，提供共享的对象和服务。
+            stream (bool)：是否使用流式处理翻译结果，默认为False。
 
         """
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id,
+                                      tags=[context.movie_code, "translation", "subtitle"])
+
         metadata = movie.metadata.to_serializable_dict()
         text_path = video.by_products[PiplinePhase.CORRECT_SUBTITLE]
         text = Path(text_path).read_text(encoding="utf-8")
-        result: ProcessResult = self.translator.translate_subtitle(text, metadata)
+        result: ProcessResult = context.translator.translate_subtitle(text, metadata, movie.terms, stream)
         if result.success:
             processed_text = result.content
             file_name = video.filename
-            out_path = os.path.join("output", file_name+"_jap.srt")
+            out_path = os.path.join(context.output_dir, movie.code, file_name + ".srt")
             logger.info(f"The translated srt will be wrote in {out_path}")
             video.by_products[PiplinePhase.TRANSLATE_SUBTITLE] = out_path
             Path(out_path).touch(exist_ok=True)
@@ -75,3 +79,33 @@ class TranslateStage(PipelineStage, VideoPipelineStage):
         return
 
 
+if __name__ == "__main__":
+    import dotenv
+
+    dotenv.load_dotenv()
+
+    provider = OpenaiProvider(os.getenv("OPENROUTER_API_KEY"), os.getenv("OPENROUTER_BASE_URL"),
+                              "deepseek/deepseek-chat-v3.1")
+    translator = TranslateOrchestrator(provider_map={
+        TaskType.TRANSLATE_SUBTITLE: [provider]
+    })
+
+    context = PipelineContext(
+        movie_code="DDT-185",
+        manifest=SQLiteManifest(),
+        translator=translator,
+        langfuse_session_id="test-session:" + datetime.now().strftime("%Y%m%d"),
+    )
+    manifest = SQLiteManifest()
+    mock_movie = manifest.get_movie("DDT-185")
+    mock_video = Video(
+        sha256="dummy",
+        filename="example_video",
+        suffix="mp4",
+        absolute_path="path/to/example",
+        status={PiplinePhase.TRANSLATE_SUBTITLE: StageStatus.PENDING},
+        by_products={PiplinePhase.CORRECT_SUBTITLE: "output/DDT-185/example_video.corrected.srt"}
+    )
+    translate_stage = TranslateStage()
+    if translate_stage.should_execute(mock_video, context):
+        translate_stage.execute(mock_movie, mock_video, context)

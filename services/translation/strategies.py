@@ -28,7 +28,7 @@ class TranslateStrategy(ABC):
     process 方法必须包含 provider 和 text 参数，其他参数可以不同
     """
     @abstractmethod
-    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext, stream) -> ProcessResult:
         """子类需要实现此方法，但签名可以不同"""
         pass
 
@@ -153,12 +153,13 @@ class BuildWithUUIDMetaDataTranslateStrategy(MetaDataTranslateStrategy):
         return messages
 
     @observe
-    def process(self, provider: Provider, context:TranslateContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
         """处理元数据翻译。
 
         Args:
             provider (Provider): 服务提供者。
             context (TranslateContext): 处理上下文。
+            stream (bool): 是否使用流式调用，默认False。
 
         Returns:
             ProcessResult: 翻译结果。
@@ -172,7 +173,7 @@ class BuildWithUUIDMetaDataTranslateStrategy(MetaDataTranslateStrategy):
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, {})
         messages = self._build_message_with_uuid(system_prompt, examples, context.text_to_process)
-        chat_result = provider.chat(messages)
+        chat_result = provider.chat(messages, stream=stream)
 
         # 将 ChatResult 转换为 ProcessResult
         return ProcessResult(
@@ -214,12 +215,12 @@ class ReplaceWithMetaDataTranslateStrategy(MetaDataTranslateStrategy, PromptRepl
         return messages
 
     @observe
-    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
         system_prompt = self.system_prompts[context.task_type]
-        examples = self.examples.get(context.task_type, {})
+        examples = self.examples.get(context.task_type, [])
         query = self.query_templates.get(context.task_type, {})
         messages = self._build_message_with_replacements(system_prompt, examples, query, context)
-        chat_result = provider.chat(messages)
+        chat_result = provider.chat(messages, stream=stream)
         return ProcessResult(
             task_type=context.task_type,
             attempt_count=chat_result.attempt_count,
@@ -436,7 +437,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         raise NotImplementedError("Subclass must implement _create_initial_linked_list")
 
     @observe
-    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
         """处理字幕，采用尽力而为策略。
 
         创建初始链表，如果失败且台词数>=10则三等分后重试，最后聚合所有结果。
@@ -444,6 +445,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         Args:
             provider (Provider): 服务提供者。
             context (TranslateContext): 处理上下文。
+            stream (bool): 是否使用流式调用，默认False。
 
         Returns:
             ProcessResult: 处理结果。
@@ -465,7 +467,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         # 处理链表
         head, total_attempt_count, total_api_time = self._process_linked_list_with_best_effort(
-            context.task_type, provider, context, head, total_attempt_count, total_api_time
+            context.task_type, provider, context, head, total_attempt_count, total_api_time, stream
         )
 
         # Strategy 层总耗时
@@ -475,7 +477,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         return self._aggregate_linked_list(head, context.task_type, total_attempt_count, strategy_time_taken)
 
     def _process_linked_list_with_best_effort(self, task_type, provider, context, head: SubtitleBlock,
-                                              total_attempt_count: int, total_api_time: int):
+                                              total_attempt_count: int, total_api_time: int, stream: bool = False):
         """尽力而为地处理链表。
 
         逐个处理节点，失败时如果台词数>=10则三等分节点并插入链表。
@@ -488,6 +490,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             head (SubtitleBlock): 链表头节点。
             total_attempt_count (int): 累计调用次数。
             total_api_time (int): 累计API时间（毫秒）。
+            stream (bool): 是否使用流式调用，默认False。
 
         Returns:
             tuple: (更新后的头节点, 总调用次数, 总API时间)。
@@ -509,7 +512,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             messages = self._build_messages(system_prompt, user_query, context, current.origin)
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
-            result = provider.chat(messages, timeout=500, response_format={"type": "json_object"})
+            result = provider.chat(messages, stream=stream, timeout=500, response_format={"type": "json_object"})
 
             # 累加调用次数和API时间（无论成功失败）
             total_attempt_count += result.attempt_count

@@ -155,12 +155,18 @@ class OpenaiProvider(Provider):
         return cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
 
     @observe
-    def chat(self, messages, **kwargs) -> ChatResult:
+    def chat(self, messages, stream: bool = False, **kwargs) -> ChatResult:
         """
-        发送chat请求，支持自动重试机制
+        发送chat请求，支持自动重试机制和流式调用
         - 最多重试3次
         - 遇到可恢复错误时等待5秒后重试
         - 黑名单模式：默认可重试，只排除明确不可重试的错误
+        - 支持流式调用：stream=True 启用流式响应（默认False保持向后兼容）
+
+        Args:
+            messages: 消息列表
+            stream: 是否启用流式调用，默认False
+            **kwargs: 其他参数
         """
         # 熔断检查：如果 Provider 已不可用，快速失败
         if not self.available:
@@ -189,36 +195,76 @@ class OpenaiProvider(Provider):
         for attempt in range(max_retries):
             attempt_count += 1
             try:
-                logger.info(f"Sending request to API (attempt {attempt + 1}/{max_retries}, non-streaming mode)...")
-                # 改用非流式请求，更稳定可靠
+                mode_str = "streaming" if stream else "non-streaming"
+                logger.info(f"Sending request to API (attempt {attempt + 1}/{max_retries}, {mode_str} mode)...")
+
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    stream=False,  # 关键改动：使用非流式
+                    stream=stream,
                     extra_body=safety_settings,
                     **kwargs
                 )
 
-                logger.info("Received response from API")
+                # 处理流式响应
+                if stream:
+                    logger.info("Receiving streaming response from API")
+                    content_parts = []
+                    finish_reason = None
+
+                    try:
+                        for chunk in response:
+                            if not chunk.choices:
+                                continue
+
+                            choice = chunk.choices[0]
+
+                            # 收集内容片段
+                            if choice.delta and choice.delta.content:
+                                content_parts.append(choice.delta.content)
+
+                            # 获取完成原因
+                            if choice.finish_reason:
+                                finish_reason = choice.finish_reason
+
+                        content = "".join(content_parts)
+                        logger.info(
+                            f"Streaming response complete: finish_reason={finish_reason}, content_length={len(content)} chars")
+
+                    except Exception as stream_error:
+                        logger.error(f"Error during streaming: {str(stream_error)}")
+                        # 流式处理出错，视为可重试错误
+                        if attempt < max_retries - 1:
+                            logger.info(f"Retrying in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
+                            continue
+                        time_taken = int((time.time() - start_time) * 1000)
+                        return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken,
+                                          content=None, error=ErrorType.OTHER)
 
                 # 处理非流式响应
-                if not response.choices:
-                    logger.error("No choices in response")
-                    # 空响应可能是临时问题，允许重试
-                    if attempt < max_retries - 1:
-                        logger.info(f"Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                        continue
-                    time_taken = int((time.time() - start_time) * 1000)  # 毫秒
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.OTHER)
+                else:
+                    logger.info("Received response from API")
 
-                choice = response.choices[0]
-                content = choice.message.content
-                finish_reason = choice.finish_reason
+                    if not response.choices:
+                        logger.error("No choices in response")
+                        # 空响应可能是临时问题，允许重试
+                        if attempt < max_retries - 1:
+                            logger.info(f"Retrying in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
+                            continue
+                        time_taken = int((time.time() - start_time) * 1000)  # 毫秒
+                        return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken,
+                                          content=None, error=ErrorType.OTHER)
 
-                logger.info(f"Response: finish_reason={finish_reason}, content_length={len(content) if content else 0} chars")
+                    choice = response.choices[0]
+                    content = choice.message.content
+                    finish_reason = choice.finish_reason
 
-                # 检查完成原因
+                    logger.info(
+                        f"Response: finish_reason={finish_reason}, content_length={len(content) if content else 0} chars")
+
+                # 统一处理完成原因（流式和非流式都执行此逻辑）
                 if finish_reason == "stop":
                     time_taken = int((time.time() - start_time) * 1000)  # 毫秒
                     return ChatResult(success=True, attempt_count=attempt_count, time_taken=time_taken, content=content.strip() if content else "")

@@ -24,13 +24,12 @@ class PipelineStage(ABC):
         """
         pass
 
-    def should_execute(self, *args, **kwargs) -> bool:
+    def should_execute(self, entity: Entity, context: 'PipelineContext') -> bool:
         """判断当前阶段是否应该执行。
 
         Args:
-            *args: 可变位置参数。
-            **kwargs: 可变关键字参数。
-
+            entity(Movie|Video): 待检查的实体对象。
+            context(PipelineContext): 流水线执行上下文，提供共享资源访问。
         Returns:
             bool: 如果应该执行返回True，否则返回False。
         """
@@ -62,12 +61,12 @@ class MoviePipelineStage(PipelineStage, ABC):
         """
         pass
 
-    def should_execute(self, movie: Movie) -> bool:
+    def should_execute(self, movie: Movie, context: PipelineContext) -> bool:
         """判断当前阶段是否应该执行。
 
         Args:
             movie (Movie): 待检查的电影对象。
-
+            context(PipelineContext): 流水线执行上下文，提供共享资源访问。
         Returns:
             bool: 如果应该执行返回True，否则返回False。
         """

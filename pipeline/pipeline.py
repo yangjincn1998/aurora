@@ -1,5 +1,5 @@
 import os
-from logging import getLogger
+from datetime import datetime
 from pathlib import Path
 from typing import List, Set, Dict, Optional
 
@@ -9,13 +9,10 @@ from domain.movie import Movie, Video
 from services.code_extract.extractor import CodeExtractor
 from services.pipeline.manifest import Manifest
 from services.translation.orchestrator import TranslateOrchestrator
-from services.web_request.javbus_web_service import JavBusWebService
-from services.web_request.missav_web_service import MissAvWebService
-from services.web_request.web_service import WebService
 from utils.file_utils import calculate_partial_sha256
+from utils.logger import get_logger
 
-logger = getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class Pipeline:
     def __init__(self,
@@ -25,15 +22,12 @@ class Pipeline:
                  manifest: Manifest,
                  translator: TranslateOrchestrator,
                  output_dir: str = os.path.join(os.getcwd(), 'output'),
-                 web_servers: List[WebService] = None,
                  ):
         self.movie_stages = movie_stages
         self.video_stages = video_stages
         self.all_stages = movie_stages + video_stages
         self.code_extractor = code_extractor
         # 创建 PipelineContext，封装 manifest
-        if web_servers is None:
-            web_servers = [MissAvWebService(), JavBusWebService()]
         self.context = PipelineContext(
             manifest=manifest,
             output_dir=output_dir,
@@ -46,7 +40,7 @@ class Pipeline:
         stages = self.video_stages if video else self.movie_stages
 
         for stage in stages:
-            if stage.should_execute(target_entity):
+            if stage.should_execute(target_entity, self.context):
                 return stage
         return None
 
@@ -62,6 +56,10 @@ class Pipeline:
                 break
 
             logger.info(f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}")
+            self.context.movie_code = movie.code
+            # 生成 Langfuse 会话 ID
+            session_id = movie.code + datetime.now().strftime("%Y%m%d")
+            self.context.langfuse_session_id = session_id
             # 传递 context 给 stage
             next_stage.execute(movie, self.context)
             # 通过 context 更新 manifest

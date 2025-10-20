@@ -2,7 +2,7 @@ import json
 import os.path
 from pathlib import Path
 
-from langfuse import observe
+from langfuse import observe, get_client
 
 from base import VideoPipelineStage
 from context import PipelineContext
@@ -22,7 +22,7 @@ class CorrectStage(VideoPipelineStage):
 
     负责对视频字幕进行校正处理。
     Attributes:
-        translator (TranslateOrchestrator): 翻译服务协调器。
+        check_provider (Provider): 用于校正完整性的服务。
     """
 
     def __init__(self, check_provider: Provider):
@@ -37,11 +37,12 @@ class CorrectStage(VideoPipelineStage):
         return "correction"
 
     @observe
-    def _quality_check(self, text: str) -> bool:
+    def _quality_check(self, text: str, context: PipelineContext) -> bool:
         """
             使用低成本的LLM对字幕质量进行检查。
             Args:
                 text (str): 待检查的字幕文本。
+                context(PipelineContext): 流水线执行上下文。
             Returns:
                 bool: 如果字幕质量合格返回True，否则返回False。
         """
@@ -60,6 +61,9 @@ class CorrectStage(VideoPipelineStage):
 - If the sample appears usable for further processing: `{"qualified": true}`
 - If the sample is structurally broken or pure garbage: `{"qualified": false, "reason": "A very brief, 10-word max explanation."}`
 """
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id,
+                                      tags=["quality_check", "subtitle", context.movie_code])
         user_query = {
             "info": "这是一个成人影片的视频字幕",
             "text": text
@@ -84,12 +88,12 @@ class CorrectStage(VideoPipelineStage):
             logger.error("Failed to check subtitle quality")
             return True
 
-    def should_execute(self, video):
+    def should_execute(self, video, context: PipelineContext):
         """判断是否应该执行校正阶段。
 
         Args:
             video (Video): 待检查的视频对象。
-
+            context(PipelineContext): 流水线执行上下文。
         Returns:
             bool: 如果校正阶段未成功完成则返回True。
         """
@@ -97,7 +101,7 @@ class CorrectStage(VideoPipelineStage):
             return False
         else:
             srt = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
-            return self._quality_check(srt)
+            return self._quality_check(srt, context)
 
     @observe
     def execute(self, movie: Movie, video: Video, context: PipelineContext):
@@ -111,6 +115,8 @@ class CorrectStage(VideoPipelineStage):
             context (PipelineContext): 流水线执行上下文。
 
         """
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id, tags=["correct", "subtitle", movie.code])
         srt_raw = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
         result: ProcessResult = context.translator.correct_subtitle(
             text=srt_raw,
@@ -168,9 +174,11 @@ if __name__ == "__main__":
             TaskType.CORRECT_SUBTITLE: [correct_provider],
         }
     )
-    context = PipelineContext(translator=translator, manifest=manifest)
+    context = PipelineContext(translator=translator, manifest=manifest, movie_code="DDT-185",
+                              langfuse_session_id="test-session-ddt-185", )
     corrector = CorrectStage(check_provider)
-    if corrector.should_execute(mock_video):
+    if corrector.should_execute(mock_video, context):
         corrector.execute(mock_movie, mock_video, context)
+        context.manifest.update_movie(mock_movie)
     else:
         logger.info("No need to execute correction stage.")

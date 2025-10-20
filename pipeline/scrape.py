@@ -1,7 +1,7 @@
 from dataclasses import fields
 from typing import List, Optional
 
-from langfuse import observe
+from langfuse import observe, get_client
 
 from base import MoviePipelineStage
 from context import PipelineContext
@@ -83,9 +83,13 @@ class ScrapeStage(MoviePipelineStage):
         logger.warning(f"Translation failed for {entity_type.name} '{original_text}'")
         return None
 
+    @observe
     def _translate_generic_field(self, context: PipelineContext, original_text: str, metadata_type: MetadataType,
                                  task_type: TaskType) -> Optional[str]:
         """翻译通用的、无额外上下文的元数据字段。"""
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id,
+                                      tags=["scrape", "metadata", metadata_type.name.lower(), "translate"])
         return self._get_translation_with_caching(
             context=context,
             entity_type=metadata_type,
@@ -93,8 +97,12 @@ class ScrapeStage(MoviePipelineStage):
             translation_func=lambda: context.translator.translate_generic_metadata(task_type, original_text)
         )
 
+    @observe
     def _translate_title(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
         """翻译标题（需要演员上下文）。"""
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id,
+                                      tags=["scrape", "metadata", "title", "translate"])
         if not metadata.title or not metadata.title.original:
             return None
 
@@ -109,8 +117,12 @@ class ScrapeStage(MoviePipelineStage):
             )
         )
 
+    @observe
     def _translate_synopsis(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
         """翻译简介（需要演员上下文）。"""
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id,
+                                      tags=["scrape", "metadata", "synopsis", "translate"])
         if not metadata.synopsis or not metadata.synopsis.original:
             return None
 
@@ -133,6 +145,9 @@ class ScrapeStage(MoviePipelineStage):
             movie (Movie): 待处理的电影对象。
             context (PipelineContext): 流水线执行上下文。
         """
+        langfuse = get_client()
+        langfuse.update_current_trace(session_id=context.langfuse_session_id, tags=["scrape", "metadata", movie.code])
+
         metadata = context.get_metadata(movie.code)
         movie.metadata = metadata
         if movie.metadata is None or not movie.metadata.categories:
