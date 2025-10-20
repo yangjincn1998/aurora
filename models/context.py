@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 from domain.movie import Term
-
 from models.enums import TaskType
 
 

@@ -9,8 +9,9 @@ from models.context import TranslateContext
 from models.enums import TaskType
 from models.results import ProcessResult, ChatResult
 from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
-    director_examples, actor_examples, category_examples, CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, \
-    TRANSLATE_SUBTITLE_PROMPT, TRANSLATE_SUBTITLE_USER_QUERY
+    director_examples, actor_examples, category_examples, studio_examples, synopsis_examples, title_examples, \
+    CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, \
+    TRANSLATE_SUBTITLE_USER_QUERY, STUDIO_SYSTEM_PROMPT, SYNOPSIS_SYSTEM_PROMPT, TITLE_SYSTEM_PROMPT
 from services.translation.provider import Provider
 from utils.logger import get_logger
 
@@ -62,12 +63,18 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         self.system_prompts = {
             TaskType.METADATA_DIRECTOR: DIRECTOR_SYSTEM_PROMPT,
             TaskType.METADATA_ACTOR: ACTOR_SYSTEM_PROMPT,
-            TaskType.METADATA_CATEGORY: CATEGORY_SYSTEM_PROMPT
+            TaskType.METADATA_CATEGORY: CATEGORY_SYSTEM_PROMPT,
+            TaskType.METADATA_TITLE: TITLE_SYSTEM_PROMPT,
+            TaskType.METADATA_SYNOPSIS: SYNOPSIS_SYSTEM_PROMPT,
+            TaskType.METADATA_STUDIO: STUDIO_SYSTEM_PROMPT
         }
         self.examples = {
             TaskType.METADATA_DIRECTOR: director_examples,
             TaskType.METADATA_ACTOR: actor_examples,
-            TaskType.METADATA_CATEGORY: category_examples
+            TaskType.METADATA_CATEGORY: category_examples,
+            TaskType.METADATA_TITLE: title_examples,
+            TaskType.METADATA_SYNOPSIS: synopsis_examples,
+            TaskType.METADATA_STUDIO: studio_examples
         }
 
     @staticmethod
@@ -86,9 +93,9 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         hint = "\n用户的查询会以uuid开头，请忽略它"
         messages.append({"role": "system", "content": system_prompt + hint})
         for question, answer in examples.items():
-            messages.append({"role": "user", "content": str(uuid.uuid4()) + question})
+            messages.append({"role": "user", "content": str(uuid.uuid1()) + question})
             messages.append({"role": "assistant", "content": answer})
-        messages.append({"role": "user", "content": str(uuid.uuid4()) + query})
+        messages.append({"role": "user", "content": str(uuid.uuid1()) + query})
         return messages
 
     def process(self, provider: Provider, context:TranslateContext) -> ProcessResult:

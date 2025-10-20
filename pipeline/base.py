@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, TYPE_CHECKING
 
 from domain.movie import Video, Movie
+
+# 避免循环导入
+if TYPE_CHECKING:
+    from pipeline.context import PipelineContext
 
 Entity = Union[Movie, Video]
 
@@ -48,12 +52,24 @@ class MoviePipelineStage(PipelineStage, ABC):
     处理整个电影对象的流水线阶段。
     """
     @abstractmethod
-    def execute(self, movie: Movie) -> None:
+    def execute(self, movie: Movie, context: 'PipelineContext') -> None:
         """执行电影级流水线阶段的处理逻辑。
 
         Args:
             movie (Movie): 待处理的电影对象。
+            context (PipelineContext): 流水线执行上下文，提供共享资源访问。
 
+        """
+        pass
+
+    def should_execute(self, movie: Movie) -> bool:
+        """判断当前阶段是否应该执行。
+
+        Args:
+            movie (Movie): 待检查的电影对象。
+
+        Returns:
+            bool: 如果应该执行返回True，否则返回False。
         """
         pass
 
@@ -63,12 +79,13 @@ class VideoPipelineStage(PipelineStage, ABC):
     处理单个视频文件的流水线阶段。
     """
     @abstractmethod
-    def execute(self, movie: Movie, video: Video) -> None:
+    def execute(self, movie: Movie, video: Video, context: 'PipelineContext') -> None:
         """执行视频级流水线阶段的处理逻辑。
 
         Args:
             movie (Movie): 视频所属的电影对象。
             video (Video): 待处理的视频对象。
+            context (PipelineContext): 流水线执行上下文，提供共享资源访问。
 
         """
         pass

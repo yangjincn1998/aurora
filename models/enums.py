@@ -1,21 +1,50 @@
 from enum import Enum, auto
 
 
+class MetadataType(Enum):
+    """数据库中元数据实体类型枚举。
+
+    定义系统支持的各种实体类型，包括导演、演员、分类、标题和简介。
+
+    Attributes:
+        STUDIO: 制作商实体类型。
+        DIRECTOR: 导演实体类型。
+        ACTOR: 男演员实体类型。
+        ACTRESS: 女演员实体类型。
+        CATEGORY: 分类实体类型。
+        TITLE: 标题实体类型。
+        SYNOPSIS: 简介实体类型。
+    """
+    STUDIO = auto()
+    DIRECTOR = auto()
+    CATEGORY = auto()
+    ACTOR = auto()
+    ACTRESS = auto()
+    TITLE = auto()
+    SYNOPSIS = auto()
+
+
 class TaskType(Enum):
     """任务类型枚举。
 
     定义系统支持的各种任务类型，包括元数据翻译和字幕处理。
 
     Attributes:
+        METADATA_STUDIO: 元数据中制作上翻译任务。
         METADATA_DIRECTOR: 元数据导演信息翻译任务。
         METADATA_ACTOR: 元数据演员信息翻译任务。
         METADATA_CATEGORY: 元数据分类信息翻译任务。
+        METADATA_TITLE: 元数据标题翻译任务。
+        METADATA_SYNOPSIS: 元数据简介翻译任务。
         CORRECT_SUBTITLE: 字幕校正任务。
         TRANSLATE_SUBTITLE: 字幕翻译任务。
     """
+    METADATA_STUDIO = auto()
     METADATA_DIRECTOR = auto()
     METADATA_ACTOR = auto()
     METADATA_CATEGORY = auto()
+    METADATA_TITLE = auto()
+    METADATA_SYNOPSIS = auto()
     CORRECT_SUBTITLE = auto()
     TRANSLATE_SUBTITLE = auto()
 

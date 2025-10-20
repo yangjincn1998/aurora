@@ -2,11 +2,12 @@ import json
 import os.path
 from pathlib import Path
 
-from base import VideoPipelineStage
 from domain.movie import Movie, Video, Metadata
 from domain.subtitle import BilingualText, BilingualList
 from models.enums import StageStatus, PiplinePhase, TaskType
 from models.results import ProcessResult, ChatResult
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from services.translation.orchestrator import TranslateOrchestrator
 from services.translation.provider import Provider, OpenaiProvider
 from utils.logger import setup_logger
@@ -27,7 +28,7 @@ class CorrectStage(VideoPipelineStage):
         self.check_provider = check_provider
 
     @staticmethod
-    def name():
+    def name(self):
         """获取阶段名称。
 
         Returns:
@@ -97,7 +98,7 @@ class CorrectStage(VideoPipelineStage):
             srt = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
             return self._quality_check(srt)
 
-    def execute(self, movie: Movie, video: Video):
+    def execute(self, movie: Movie, video: Video, context: PipelineContext):
         """执行字幕校正处理。
 
         读取原始字幕文件，使用校正服务进行校正，并将结果保存到输出文件。
@@ -105,6 +106,7 @@ class CorrectStage(VideoPipelineStage):
         Args:
             movie (Movie): 视频所属的电影对象。
             video (Video): 待处理的视频对象。
+            context (PipelineContext): 流水线执行上下文。
 
         """
         srt_raw = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")

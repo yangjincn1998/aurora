@@ -1,5 +1,7 @@
+import os
 import time
 from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
 import openai
 
@@ -47,6 +49,29 @@ class Provider(ABC):
         """
         pass
 
+    @staticmethod
+    def from_config(config: Dict) -> Optional['Provider']:
+        """从配置字典创建 Provider 实例（工厂方法）。
+
+        Args:
+            config (Dict): Provider 配置字典，包含以下字段：
+                - service (str): 服务类型（如 "openai"）
+                - model (str): 模型名称
+                - api_key (str): API密钥（可以是 "ENV_XXX" 格式引用环境变量）
+                - base_url (str): API基础URL（可以是 "ENV_XXX" 格式引用环境变量）
+                - timeout (int, optional): 超时时间
+
+        Returns:
+            Optional[Provider]: Provider 实例，如果创建失败返回 None
+        """
+        service_type = config.get("service")
+
+        if service_type == "openai":
+            return OpenaiProvider.from_config(config)
+        else:
+            logger.warning(f"Unknown service type: {service_type}")
+            return None
+
 
 class OpenaiProvider(Provider):
     """OpenAI兼容的API提供者实现。
@@ -84,6 +109,48 @@ class OpenaiProvider(Provider):
     @property
     def model(self):
         return self._model
+
+    @classmethod
+    def from_config(cls, config: Dict) -> Optional['OpenaiProvider']:
+        """从配置字典创建 OpenaiProvider 实例。
+
+        Args:
+            config (Dict): Provider 配置字典，包含以下字段：
+                - model (str): 模型名称
+                - api_key (str): API密钥（可以是 "ENV_XXX" 格式引用环境变量）
+                - base_url (str): API基础URL（可以是 "ENV_XXX" 格式引用环境变量）
+                - timeout (int, optional): 超时时间，默认500秒
+
+        Returns:
+            Optional[OpenaiProvider]: OpenaiProvider 实例，如果创建失败返回 None
+        """
+        model = config.get("model")
+        api_key = config.get("api_key")
+        base_url = config.get("base_url")
+        timeout = config.get("timeout", 500)
+
+        # 处理环境变量：如果值以 "ENV_" 开头，则从环境变量中获取
+        if api_key and api_key.startswith("ENV_"):
+            env_var = api_key[4:]  # 去掉 "ENV_" 前缀
+            api_key = os.getenv(env_var)
+            if not api_key:
+                logger.warning(f"Environment variable {env_var} not found for api_key")
+                return None
+
+        if base_url and base_url.startswith("ENV_"):
+            env_var = base_url[4:]
+            base_url = os.getenv(env_var)
+            if not base_url:
+                logger.warning(f"Environment variable {env_var} not found for base_url")
+                return None
+
+        # 验证必需参数
+        if not all([api_key, base_url, model]):
+            logger.warning(
+                f"Missing required parameters: api_key={bool(api_key)}, base_url={bool(base_url)}, model={bool(model)}")
+            return None
+
+        return cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
 
     def chat(self, messages, **kwargs) -> ChatResult:
         """

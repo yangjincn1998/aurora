@@ -1,10 +1,9 @@
 import re
 from http.client import HTTPException
-from logging import getLogger
 from pathlib import Path
 from typing import Set, Optional, List
 
-from services.web_request.missav_web_service import MissavWebService
+from services.web_request.missav_web_service import MissAvWebService
 from services.web_request.web_service import WebService
 from utils.logger import get_logger
 
@@ -235,7 +234,7 @@ if __name__ == "__main__":
     ]
 
     print(f"Found {len(all_videos)} videos")
-    extractor = CodeExtractor(web_servers=[MissavWebService()])
+    extractor = CodeExtractor(web_servers=[MissAvWebService()])
     for video in all_videos:
         print(f"video name: {video}, extracted code: {extractor.extract_av_code(video)}")
 """

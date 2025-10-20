@@ -1,11 +1,14 @@
 from typing import Dict, List, Optional
 
+from yaml import safe_load
+
 from domain.movie import Term
+from models.context import TranslateContext
 from models.enums import TaskType
 from models.results import ProcessResult
-from models.context import TranslateContext
 from services.translation.provider import Provider
 from services.translation.strategies import TranslateStrategy, MetaDataTranslateStrategy, SliceSubtitleStrategy
+
 
 class TranslateOrchestrator:
     """
@@ -15,6 +18,67 @@ class TranslateOrchestrator:
     """
     def __init__(self, provider_map: Dict[TaskType, List[Provider]]):
         self.provider_map = provider_map
+
+    @classmethod
+    def from_config_yaml(cls, file_path: str):
+        """从 YAML 配置文件创建 TranslateOrchestrator 实例。
+
+        Args:
+            file_path (str): YAML 配置文件路径
+
+        Returns:
+            TranslateOrchestrator: 翻译编排器实例
+        """
+        with open(file_path, "r", encoding="utf-8") as f:
+            config: Dict = safe_load(f)
+            return cls.from_config(config["translate_orchestrator"])
+
+    @classmethod
+    def from_config(cls, config: Dict):
+        """从配置字典创建 TranslateOrchestrator 实例。
+
+        Args:
+            config (Dict): 翻译编排器配置字典
+
+        Returns:
+            TranslateOrchestrator: 翻译编排器实例
+        """
+        # 任务类型映射：配置文件中的名称 -> TaskType 枚举列表
+        task_name_map: Dict[str, List[TaskType]] = {
+            "metadata": [
+                TaskType.METADATA_DIRECTOR,
+                TaskType.METADATA_ACTOR,
+                TaskType.METADATA_CATEGORY,
+                TaskType.METADATA_TITLE,
+                TaskType.METADATA_SYNOPSIS,
+                TaskType.METADATA_STUDIO
+            ],
+            "correct": [TaskType.CORRECT_SUBTITLE],
+            "subtitle": [TaskType.TRANSLATE_SUBTITLE]
+        }
+
+        provider_map: Dict[TaskType, List[Provider]] = {}
+        provider_map_yaml = config["provider_map"]
+
+        # 遍历配置中的每个任务类型
+        for task_name, providers_config in provider_map_yaml.items():
+            # 获取该任务名对应的所有 TaskType
+            task_types = task_name_map.get(task_name)
+            if not task_types:
+                continue
+
+            # 使用 Provider.from_config 工厂方法创建 Provider 列表
+            providers = []
+            for provider_config in providers_config:
+                provider = Provider.from_config(provider_config)
+                if provider:
+                    providers.append(provider)
+
+            # 为所有对应的 TaskType 设置相同的 Provider 列表
+            for task_type in task_types:
+                provider_map[task_type] = providers
+
+        return cls(provider_map)
 
     def correct_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
         """
@@ -59,7 +123,7 @@ class TranslateOrchestrator:
         """翻译元数据的专用接口。
 
         Args:
-            task_type (TaskType): 元数据任务类型（导演、演员、分类等）。
+            task_type (TaskType): 元数据任务类型（导演、演员、分类、标题、简介等）。
             text (str): 待翻译的文本。
 
         Returns:

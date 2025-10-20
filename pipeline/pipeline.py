@@ -1,50 +1,101 @@
+import os
 from logging import getLogger
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Set, Dict, Optional
 
-
-from base import MoviePipelineStage, VideoPipelineStage
+from base import MoviePipelineStage, VideoPipelineStage, PipelineStage
+from context import PipelineContext
 from domain.movie import Movie, Video
 from services.code_extract.extractor import CodeExtractor
 from services.pipeline.manifest import Manifest
+from services.translation.orchestrator import TranslateOrchestrator
+from services.web_request.javbus_web_service import JavBusWebService
+from services.web_request.missav_web_service import MissAvWebService
+from services.web_request.web_service import WebService
 from utils.file_utils import calculate_partial_sha256
-from utils.logger import get_logger
 
-logger = get_logger(__name__)
-class Pipline:
+logger = getLogger(__name__)
+
+
+class Pipeline:
     def __init__(self,
                  movie_stages: List[MoviePipelineStage],
                  video_stages: List[VideoPipelineStage],
                  code_extractor: CodeExtractor,
-                 manifest: Manifest
+                 manifest: Manifest,
+                 translator: TranslateOrchestrator,
+                 output_dir: str = os.path.join(os.getcwd(), 'output'),
+                 web_servers: List[WebService] = None,
                  ):
         self.movie_stages = movie_stages
         self.video_stages = video_stages
+        self.all_stages = movie_stages + video_stages
         self.code_extractor = code_extractor
-        self.manifest = manifest
+        # 创建 PipelineContext，封装 manifest
+        if web_servers is None:
+            web_servers = [MissAvWebService(), JavBusWebService()]
+        self.context = PipelineContext(
+            manifest=manifest,
+            output_dir=output_dir,
+            translator=translator
+        )
 
-    def _process_movie(self, movie):
-        logger.info(f"Processing movie {movie.code}")
-        for stage in self.movie_stages:
-            if stage.should_process(movie):
-                stage.execute(movie)
-                self.manifest.update_movie(movie)
+    def _get_next_stage(self, movie: Movie, video: Optional[Video] = None) -> Optional[PipelineStage]:
+        """根据实体当前状态，决定下一个要执行的阶段。"""
+        target_entity = video if video else movie
+        stages = self.video_stages if video else self.movie_stages
+
+        for stage in stages:
+            if stage.should_execute(target_entity):
+                return stage
+        return None
+
+    def _process_movie(self, movie: Movie):
+        """处理单部影片，直到所有阶段完成。"""
+        logger.info(f"开始处理影片: {movie.code}")
+
+        # 处理影片级别的阶段
+        while True:
+            next_stage = self._get_next_stage(movie)
+            if not next_stage:
+                logger.info(f"影片 {movie.code} 的所有影片级阶段处理完毕。")
+                break
+
+            logger.info(f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}")
+            # 传递 context 给 stage
+            next_stage.execute(movie, self.context)
+            # 通过 context 更新 manifest
+            self.context.update_movie(movie)
+
+        # 处理该影片下所有视频的视频级别阶段
         for video in movie.videos:
-            for stage in self.video_stages:
-                if stage.should_execute(video):
-                    stage.execute(movie, video)
-                    self.manifest.update_video(video)
+            logger.info(f"开始处理视频: {video.filename}")
+            while True:
+                next_stage = self._get_next_stage(movie, video)
+                if not next_stage:
+                    logger.info(f"视频 {video.filename} 的所有视频级阶段处理完毕。")
+                    break
 
-    def run(self, src_path):
-        # 扫描src_path, 生成一张待处理的清单
+                logger.info(f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}")
+                # 传递 context 给 stage
+                next_stage.execute(movie, video, self.context)
+                # 通过 context 更新 manifest
+                self.context.update_video(video)
+
+    def run(self, src_path: str):
+        """扫描并处理所有影片。"""
         movies = self._scan(src_path)
-        logger.info(f"Found {len(movies)} movies to process.")
+        logger.info(f"扫描到 {len(movies)} 部影片待处理。")
         for movie in movies:
-            self.manifest.register_movie(movie)
-        for movie in movies:
+            # 注册影片和其下的视频，并从数据库同步最新状态
+            self.context.register_movie(movie)
+            for video in movie.videos:
+                self.context.set_video_status(video)
+
+            # 启动该影片的处理流程
             self._process_movie(movie)
 
-    def _scan(self, src_dir: str) -> List[Movie]:
+    def _scan(self, src_dir: str) -> Set[Movie]:
         """
         递归地扫描目录下所有字幕视频文件，创建待处理的movie列表
 
@@ -53,7 +104,7 @@ class Pipline:
         Args：
             src_dir(str): 待处理的文件目录
         Returns：
-            List[Movie]: 待处理影片列表
+            Set[Movie]: 待处理影片集合
         Raises:
             FileNotFoundError: 传入的src_dir不是要给有效的目录名
         """
@@ -84,7 +135,7 @@ class Pipline:
                 suffix=video.suffix,
                 absolute_path=video_path
             )
-            self.manifest.set_video_status(video_dataclass)
+            # 在扫描阶段不再需要 set_video_status，统一移到 run 方法中
             av_code = self.code_extractor.extract_av_code(video.name)
             if av_code:
                 movie_code = av_code
@@ -99,4 +150,4 @@ class Pipline:
 
             movie = movies_map[movie_code]
             movie.videos.append(video_dataclass)
-        return list(movies_map.values())
+        return set(movies_map.values())

@@ -1,5 +1,4 @@
 import os
-from logging import getLogger
 from pathlib import Path
 
 from domain.movie import Video, Movie
