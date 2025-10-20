@@ -2,7 +2,7 @@ translate_orchestrator:
   provider_map:
     metadata:
       - service: openai
-        model: "deepseek/deepseek-chat-v3-0324"
+        model: "deepseek/deepseek-v3.1-terminus"
         api_key: "ENV_OPENROUTER_API_KEY"
         base_url: "ENV_OPENROUTER_BASE_URL"
     correct:
@@ -12,6 +12,6 @@ translate_orchestrator:
         base_url: "ENV_OPENROUTER_BASE_URL"
     subtitle:
       - service: openai
-        model: "qwen/qwen3-max"
+        model: "deepseek/deepseek-v3.1-terminus"
         api_key: "ENV_OPENROUTER_API_KEY"
         base_url: "ENV_OPENROUTER_BASE_URL"

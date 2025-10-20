@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
 
+from langfuse import observe
 from yaml import safe_load
 
 from domain.movie import Term
@@ -7,7 +8,8 @@ from models.context import TranslateContext
 from models.enums import TaskType
 from models.results import ProcessResult
 from services.translation.provider import Provider
-from services.translation.strategies import TranslateStrategy, MetaDataTranslateStrategy, SliceSubtitleStrategy
+from services.translation.strategies import TranslateStrategy, SliceSubtitleStrategy, \
+    BuildWithUUIDMetaDataTranslateStrategy, ReplaceWithMetaDataTranslateStrategy
 
 
 class TranslateOrchestrator:
@@ -80,6 +82,7 @@ class TranslateOrchestrator:
 
         return cls(provider_map)
 
+    @observe
     def correct_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
         """
         校正字幕的专用接口
@@ -99,6 +102,7 @@ class TranslateOrchestrator:
         )
         return self._process_task(context)
 
+    @observe
     def translate_subtitle(self, text: str, metadata: dict, terms: List[Term]|None=None) -> ProcessResult:
         """翻译字幕的专用接口。
 
@@ -119,11 +123,54 @@ class TranslateOrchestrator:
         )
         return self._process_task(context)
 
-    def translate_metadata(self, task_type: TaskType, text: str) -> ProcessResult:
+    @observe
+    def translate_title(self, text: str, actors: List[Dict] | None = None,
+                        actress: List[Dict] | None = None) -> ProcessResult:
+        """翻译标题的专用接口。
+
+        Args:
+            text (str): 待翻译的文本。
+            actors (Optional[List[Dict]]): 相关演员列表。
+            actress (Optional[List[Dict]]): 相关女优列表。
+
+        Returns:
+            ProcessResult: 带有翻译任务结果的数据类。
+        """
+        context = TranslateContext(
+            task_type=TaskType.METADATA_TITLE,
+            text_to_process=text,
+            actors=actors,
+            actress=actress
+        )
+        return self._process_task(context)
+
+    @observe
+    def translate_synopsis(self, text: str, actors: List[Dict] | None = None,
+                           actress: List[Dict] | None = None) -> ProcessResult:
+        """翻译简介的专用接口。
+
+        Args:
+            text (str): 待翻译的文本。
+            actors (Optional[List[Dict]]): 相关演员列表。
+            actress (Optional[List[Dict]]): 相关女优列表。
+
+        Returns:
+            ProcessResult: 带有翻译任务结果的数据类。
+        """
+        context = TranslateContext(
+            task_type=TaskType.METADATA_SYNOPSIS,
+            text_to_process=text,
+            actors=actors,
+            actress=actress
+        )
+        return self._process_task(context)
+
+    @observe
+    def translate_generic_metadata(self, task_type: TaskType, text: str) -> ProcessResult:
         """翻译元数据的专用接口。
 
         Args:
-            task_type (TaskType): 元数据任务类型（导演、演员、分类、标题、简介等）。
+            task_type (TaskType): 元数据任务类型（导演、演员、分类、片商等）。
             text (str): 待翻译的文本。
 
         Returns:
@@ -131,7 +178,7 @@ class TranslateOrchestrator:
         """
         context = TranslateContext(
             task_type=task_type,
-            text_to_process=text
+            text_to_process=text,
         )
         return self._process_task(context)
 
@@ -173,5 +220,8 @@ class TranslateOrchestrator:
             return SliceSubtitleStrategy(slice_size=500)
         elif task_type == TaskType.TRANSLATE_SUBTITLE:
             return SliceSubtitleStrategy(slice_size=550)
+        elif task_type in {TaskType.METADATA_DIRECTOR, TaskType.METADATA_ACTOR, TaskType.METADATA_CATEGORY,
+                           TaskType.METADATA_STUDIO}:
+            return BuildWithUUIDMetaDataTranslateStrategy()
         else:
-            return MetaDataTranslateStrategy()
+            return ReplaceWithMetaDataTranslateStrategy()

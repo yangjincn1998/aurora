@@ -2,12 +2,14 @@ import json
 import os.path
 from pathlib import Path
 
-from domain.movie import Movie, Video, Metadata
-from domain.subtitle import BilingualText, BilingualList
+from langfuse import observe
+
+from base import VideoPipelineStage
+from context import PipelineContext
+from domain.movie import Movie, Video
 from models.enums import StageStatus, PiplinePhase, TaskType
 from models.results import ProcessResult, ChatResult
-from pipeline.base import VideoPipelineStage
-from pipeline.context import PipelineContext
+from services.pipeline.manifest import SQLiteManifest
 from services.translation.orchestrator import TranslateOrchestrator
 from services.translation.provider import Provider, OpenaiProvider
 from utils.logger import setup_logger
@@ -23,11 +25,9 @@ class CorrectStage(VideoPipelineStage):
         translator (TranslateOrchestrator): 翻译服务协调器。
     """
 
-    def __init__(self, translator: TranslateOrchestrator, check_provider: Provider):
-        self.translator = translator
+    def __init__(self, check_provider: Provider):
         self.check_provider = check_provider
 
-    @staticmethod
     def name(self):
         """获取阶段名称。
 
@@ -36,6 +36,7 @@ class CorrectStage(VideoPipelineStage):
         """
         return "correction"
 
+    @observe
     def _quality_check(self, text: str) -> bool:
         """
             使用低成本的LLM对字幕质量进行检查。
@@ -98,6 +99,7 @@ class CorrectStage(VideoPipelineStage):
             srt = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
             return self._quality_check(srt)
 
+    @observe
     def execute(self, movie: Movie, video: Video, context: PipelineContext):
         """执行字幕校正处理。
 
@@ -110,15 +112,15 @@ class CorrectStage(VideoPipelineStage):
 
         """
         srt_raw = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
-        result: ProcessResult = self.translator.correct_subtitle(
+        result: ProcessResult = context.translator.correct_subtitle(
             text=srt_raw,
             metadata=movie.metadata.to_serializable_dict(),
             terms=movie.terms
         )
         if result.success:
             corrected_srt = result.content
-            corrected_path = os.path.join(str(Path(__file__).parent.parent), "output", video.filename + "_corrected.srt")
-            video.by_products[PiplinePhase.CORRECT_SUBTITLE] = corrected_srt
+            corrected_path = os.path.join(context.output_dir, movie.code, video.filename + ".corrected.srt")
+            video.by_products[PiplinePhase.CORRECT_SUBTITLE] = corrected_path
             path = Path(corrected_path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch(exist_ok=True)
@@ -140,56 +142,35 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
-    Mock_Video = Video(
+    manifest = SQLiteManifest()
+    mock_movie = manifest.get_movie("DDT-185")
+    mock_video = Video(
         sha256="dummyhash",
         filename="example_video",
         suffix=".mp4",
         absolute_path="/path/to/example_video.mp4",
         by_products={
-            PiplinePhase.TRANSCRIBE_AUDIO: r"D:\4. Collections\6.Adult Videos\PythonProject\test_mode\pipline_correct\BBAN-217  2.srt"
+            PiplinePhase.TRANSCRIBE_AUDIO: os.path.join(os.getcwd(), "output",
+                                                        "[Dogma] あれから10年 秘儀伝授 男のバイブルVOL．1 完全潮吹き入門(ddt-185.srt")
         },
         status={
             PiplinePhase.TRANSCRIBE_AUDIO: StageStatus.SUCCESS
         }
     )
-    Mock_Movie = Movie(
-        code="BBAN-217",
-        metadata=Metadata(
-            title=BilingualText(
-                original="BBAN-217 飲尿・浴尿レズビアン ～相手の体液全てを味わい尽くしまみれる2人～",
-                translated="BBAN-217 饮尿·浴尿女同性恋 ～尽情品尝对方所有体液的两人～"
-            ),
-            release_date="2019-02-01",
-            director=None,
-            studio=BilingualText(
-                original="ビビアン",
-                translated="Vivian"
-            ),
-            synopsis=None,
-            categories=BilingualList(
-                original=["レズビアン", "飲尿", "浴尿"],
-                translated=["女同性恋", "饮尿", "浴尿"]
-            ),
-            actresses=[
-                BilingualText(original="宮崎あや ", translated="宫崎绫"),
-                BilingualText(original="七海ゆあ ", translated="七海由亚")
-            ]
-        ),
-        videos=[Mock_Video]
-    )
+    mock_movie.videos = [mock_video]
 
-    check_provider = OpenaiProvider(api_key=os.getenv("openrouter_api_key"), base_url=os.getenv("openrouter_base_url"),
-                                    model="google/gemini-2.0-flash-001")
-    correct_provider = OpenaiProvider(api_key=os.getenv("openrouter_api_key"),
-                                      base_url=os.getenv("openrouter_base_url"), model="google/gemini-2.5-pro")
+    check_provider = OpenaiProvider(api_key=os.getenv("OPENROUTER_API_KEY"), base_url=os.getenv("OPENROUTER_BASE_URL"),
+                                    model="deepseek/deepseek-v3.1-terminus")
+    correct_provider = OpenaiProvider(api_key=os.getenv("OPENROUTER_API_KEY"),
+                                      base_url=os.getenv("OPENROUTER_BASE_URL"), model="google/gemini-2.5-pro")
     translator = TranslateOrchestrator(
         {
             TaskType.CORRECT_SUBTITLE: [correct_provider],
         }
     )
-    corrector = CorrectStage(translator, check_provider)
-    if corrector.should_execute(Mock_Video):
-        corrector.execute(Mock_Movie, Mock_Video)
-        print(Mock_Video)
+    context = PipelineContext(translator=translator, manifest=manifest)
+    corrector = CorrectStage(check_provider)
+    if corrector.should_execute(mock_video):
+        corrector.execute(mock_movie, mock_video, context)
     else:
         logger.info("No need to execute correction stage.")

@@ -37,39 +37,6 @@ class Metadata(Serializable):
     actors: List[BilingualText] | BilingualList = field(default_factory=list)
     actresses: List[BilingualText] | BilingualList = field(default_factory=list)
 
-
-metadata = Metadata(
-    title=BilingualText(
-        original="SSIS-001 一ヶ月間の禁欲の果てに彼女のルームメイト2人と浮気SEXだけに没頭した彼女不在の3日間。 葵つかさ 乙白さやか",
-        translated=None),
-    # 中文页面系机翻，不提取
-    release_date="2021-02-18",
-    actresses=BilingualList(
-        original=["葵つかさ", "乙白さやか"],
-        translated=["葵司", "乙白沙也加"],
-    ),
-    actors=BilingualList(
-        original=["平田司"],
-        translated=["平田司"]
-    ),
-    studio=BilingualText(
-        original="エスワン ナンバーワンスタイル",
-        translated=None  # 同样不抽取
-    ),
-    categories=BilingualList(
-        original=["美乳", "美少女", "寝取り・寝取られ・NTR", "ドラマ", "3P・4P", "ギリモザ", "ハイビジョン",
-                  "独占配信"],
-        translated=["中文字幕", "美乳", "美少女", "NTR", "剧情", "多人运动", "超薄格", "高清", "独家"]
-    ),
-    director=BilingualText(
-        original="苺原",
-        translated=None  # 不抽取
-    ),
-    synopsis=BilingualText(
-        original="S1スリム美女優の豪華共演エモドラマ作！僕の彼女は友人2人とルームシェアをしている。僕もたまにその家に遊びにいくのだが年上でクールなルームメイト‘つかさ’に恋してしまい告白。彼女と一か月間エッチしなければイイ事してあげると言われ僕は禁欲生活の末にセックス。彼女は不在中だったがそれをもう一人の友人‘さやか’に見られ逆告白、なりゆきでエッチする。こじれた淫らな彼女不在の3日間のハメまくりNTR生活。",
-        translated=None
-    )
-)
 @dataclass
 class Video:
     """视频对象数据类。

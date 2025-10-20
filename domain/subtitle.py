@@ -52,7 +52,6 @@ class BilingualText(Serializable):
     original: str
     translated: Optional[str] = None
 
-
 @dataclass
 class BilingualList(Serializable):
     """列表级别的双语对照数据类。

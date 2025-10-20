@@ -1,6 +1,8 @@
 from dataclasses import fields
 from typing import List, Optional
 
+from langfuse import observe
+
 from base import MoviePipelineStage
 from context import PipelineContext
 from domain.movie import Movie, Metadata
@@ -48,54 +50,82 @@ class ScrapeStage(MoviePipelineStage):
         """
         return movie.metadata is None
 
-    def _translate_and_cache(self, original_text: str, field_name: str) -> Optional[str]:
+    def _get_translation_with_caching(
+            self,
+            context: PipelineContext,
+            entity_type: MetadataType,
+            original_text: str,
+            translation_func
+    ) -> Optional[str]:
         """
-        【核心重构】翻译单个文本并处理缓存。
-        此方法是所有翻译逻辑的中心，避免了代码重复。
-
-        1. 首先在 manifest (缓存) 中查找。
-        2. 如果未找到，调用翻译器进行翻译。
-        3. 如果翻译成功，将新结果更新到 manifest 中。
-        4. 返回翻译结果或 None。
+        【重构核心】通用的缓存与翻译逻辑。
+        1. 检查缓存。
+        2. 若缓存未命中，则执行传入的 translation_func。
+        3. 成功后更新缓存。
         """
-        task_map = {
-            "title": TaskType.METADATA_TITLE,
-            "synopsis": TaskType.METADATA_SYNOPSIS,
-            "director": TaskType.METADATA_DIRECTOR,
-            "actors": TaskType.METADATA_ACTOR,
-            "actresses": TaskType.METADATA_ACTOR,
-            "categories": TaskType.METADATA_CATEGORY,
-            "studio": TaskType.METADATA_STUDIO,
-        }
-        metadata_map = {
-            "title": MetadataType.TITLE,
-            "synopsis": MetadataType.SYNOPSIS,
-            "director": MetadataType.DIRECTOR,
-            "actors": MetadataType.ACTOR,
-            "actresses": MetadataType.ACTRESS,
-            "categories": MetadataType.CATEGORY,
-            "studio": MetadataType.STUDIO,
-        }
-        entity_type = metadata_map.get(field_name)
-        task_type = task_map.get(field_name)
+        # 1. 检查缓存
+        cached_record = context.get_entity(entity_type, original_text)
+        if cached_record:
+            logger.info(f"Cache hit for {entity_type.name} '{original_text}': '{cached_record}'")
+            return cached_record
 
-        # 1. 检查缓存 - 通过 context 访问 manifest
-        record = context.get_entity(entity_type, original_text)
-        if record:
-            logger.info(f"Cache hit for {field_name} '{original_text}': '{record}'")
-            return record
+        # 2. 调用翻译器 (通过传入的函数)
+        logger.info(f"Attempt to translate '{entity_type.name}': '{original_text}'")
+        translate_result = translation_func()
 
-        # 2. 调用翻译器
-        translate_result = context.translator.translate_metadata(task_type, original_text)
-
-        # 3. 更新缓存并返回 - 通过 context 写入 manifest
-        if translate_result.success:
-            logger.info(f"Translated {field_name} '{original_text}' to '{translate_result.content}'")
+        # 3. 更新缓存并返回
+        if translate_result and translate_result.success:
             translated_text = translate_result.content
+            logger.info(f"Translated {entity_type.name} '{original_text}' to '{translated_text}'")
             context.update_entity(entity_type, original_text, translated_text)
             return translated_text
+
+        logger.warning(f"Translation failed for {entity_type.name} '{original_text}'")
         return None
 
+    def _translate_generic_field(self, context: PipelineContext, original_text: str, metadata_type: MetadataType,
+                                 task_type: TaskType) -> Optional[str]:
+        """翻译通用的、无额外上下文的元数据字段。"""
+        return self._get_translation_with_caching(
+            context=context,
+            entity_type=metadata_type,
+            original_text=original_text,
+            translation_func=lambda: context.translator.translate_generic_metadata(task_type, original_text)
+        )
+
+    def _translate_title(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
+        """翻译标题（需要演员上下文）。"""
+        if not metadata.title or not metadata.title.original:
+            return None
+
+        return self._get_translation_with_caching(
+            context=context,
+            entity_type=MetadataType.TITLE,
+            original_text=metadata.title.original,
+            translation_func=lambda: context.translator.translate_title(
+                text=metadata.title.original,
+                actors=[a.to_serializable_dict() for a in metadata.actors],
+                actress=[a.to_serializable_dict() for a in metadata.actresses]
+            )
+        )
+
+    def _translate_synopsis(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
+        """翻译简介（需要演员上下文）。"""
+        if not metadata.synopsis or not metadata.synopsis.original:
+            return None
+
+        return self._get_translation_with_caching(
+            context=context,
+            entity_type=MetadataType.SYNOPSIS,
+            original_text=metadata.synopsis.original,
+            translation_func=lambda: context.translator.translate_synopsis(
+                text=metadata.synopsis.original,
+                actors=[a.to_serializable_dict() for a in metadata.actors],
+                actress=[a.to_serializable_dict() for a in metadata.actresses]
+            )
+        )
+
+    @observe
     def execute(self, movie: Movie, context: PipelineContext):
         """执行影片信息抓取处理。
 
@@ -105,7 +135,7 @@ class ScrapeStage(MoviePipelineStage):
         """
         metadata = context.get_metadata(movie.code)
         movie.metadata = metadata
-        if movie.metadata is None or not movie.metadata.title:
+        if movie.metadata is None or not movie.metadata.categories:
             logger.info(f"Starting metadata scraping for {movie.code}...")
             # 抓取逻辑实现
             for server in self.web_servers:
@@ -120,33 +150,59 @@ class ScrapeStage(MoviePipelineStage):
             if movie.metadata is None:
                 logger.error(f"All web services failed to get metadata for {movie.code}")
                 return
+        # 定义字段到枚举的映射
+        field_map = {
+            "director": (MetadataType.DIRECTOR, TaskType.METADATA_DIRECTOR),
+            "studio": (MetadataType.STUDIO, TaskType.METADATA_STUDIO),
+            "categories": (MetadataType.CATEGORY, TaskType.METADATA_CATEGORY),
+            "actors": (MetadataType.ACTOR, TaskType.METADATA_ACTOR),
+            "actresses": (MetadataType.ACTRESS, TaskType.METADATA_ACTOR),  # 注意：女演员也用 METADATA_ACTOR 任务
+        }
 
+        # 优先翻译通用字段，为标题和简介提供上下文
         for field in fields(movie.metadata):
+            if field.name not in field_map:
+                continue
+            metadata_type, task_type = field_map[field.name]
             value = getattr(movie.metadata, field.name)
-            logger.info(f"Processing field {field.name}...")
+            logger.info(f"Check generic field: \"{field.name}\"...")
+
             if isinstance(value, BilingualText) and not value.translated:
-                logger.info(f"Processing {value.original}...")
-                value.translated = self._translate_and_cache(value.original, field.name)
-                logger.info(f"Processed as {value.translated}...")
+                logger.info(f"Processing value {value}...")
+                value.translated = self._translate_generic_field(context, value.original, metadata_type, task_type)
             elif isinstance(value, BilingualList) and (
                     not value.translated or len(value.translated) != len(value.original)):
+                logger.info(f"Processing bilingual list object...")
                 translated_list = []
-                for original_item in value.original:
-                    logger.info(f"Processing item {original_item}...")
-                    translated_item = self._translate_and_cache(original_item, field.name)
-                    logger.info(f"Translated as {translated_item}...")
-                    translated_list.append(translated_item if translated_item else original_item)
+                for item in value.original:
+                    logger.info(f"Processing item {item}...")
+                    translated = self._translate_generic_field(context, item, metadata_type, task_type)
+                    translated_list.append(translated if translated else item)
                 value.translated = translated_list
-            elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], BilingualText):
-                for bt in value:
-                    if not bt.translated:
-                        logger.info(f"Processing item {bt.original}...")
-                        bt.translated = self._translate_and_cache(bt.original, field.name)
-                        logger.info(f"Processed as {bt.translated}...")
+            elif isinstance(value, list):
+                logger.info(f"Processing list object...")
+                for item in value:
+                    logger.info(f"Check list item {item}...")
+                    if isinstance(item, BilingualText) and not item.translated:
+                        logger.info(f"item {item} needs process...")
+                        item.translated = self._translate_generic_field(context, item.original, metadata_type,
+                                                                        task_type)
+                    else:
+                        logger.info(f"item {item} has been processed.")
             else:
+                logger.info(f"{field.name}: {value} need not translation.")
                 continue
+
+        # 最后翻译需要上下文的字段
+        logger.info("Processing field title...")
+        if movie.metadata.title and not movie.metadata.title.translated:
+            movie.metadata.title.translated = self._translate_title(context, movie.metadata)
+
+        logger.info("Processing field synopsis...")
+        if movie.metadata.synopsis and not movie.metadata.synopsis.translated:
+            movie.metadata.synopsis.translated = self._translate_synopsis(context, movie.metadata)
+
         logger.info(f"Completed metadata scraping and translation for {movie.code}")
-        return
 
 
 if __name__ == "__main__":
@@ -158,7 +214,7 @@ if __name__ == "__main__":
         translator=translator,
         manifest=SQLiteManifest(),
     )
-    movie = Movie(code="MGMQ-104")
+    movie = Movie(code="DDK-001")
     context.register_movie(movie)
     scraper = ScrapeStage(web_servers=[JavBusWebService()])
     scraper.execute(movie, context)

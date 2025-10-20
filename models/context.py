@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from domain.movie import Term
 from models.enums import TaskType
@@ -16,8 +16,12 @@ class TranslateContext:
         metadata (Optional[dict]): 任务相关的元数据。
         terms (Optional[List[Term]]): 术语库集合。
         text_to_process (Optional[str]): 待处理的文本内容。
+        actors (Optional[List[Dict]]): 相关演员列表。
+        actress (Optional[List[Dict]]): 相关女优列表。
     """
     task_type: TaskType
     metadata: Optional[dict] = None
     terms: Optional[List[Term]] = None
     text_to_process: Optional[str] = None
+    actors: Optional[List[Dict]] = None
+    actress: Optional[List[Dict]] = None

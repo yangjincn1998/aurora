@@ -4,6 +4,8 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from langfuse import observe
+
 from data_structures.subtitle_node import SubtitleBlock
 from models.context import TranslateContext
 from models.enums import TaskType
@@ -11,7 +13,9 @@ from models.results import ProcessResult, ChatResult
 from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
     director_examples, actor_examples, category_examples, studio_examples, synopsis_examples, title_examples, \
     CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, \
-    TRANSLATE_SUBTITLE_USER_QUERY, STUDIO_SYSTEM_PROMPT, SYNOPSIS_SYSTEM_PROMPT, TITLE_SYSTEM_PROMPT
+    TRANSLATE_SUBTITLE_USER_QUERY, STUDIO_SYSTEM_PROMPT, SYNOPSIS_SYSTEM_PROMPT, TITLE_SYSTEM_PROMPT, \
+    SYNOPSIS_USER_QUERY, \
+    TITLE_USER_QUERY
 from services.translation.provider import Provider
 from utils.logger import get_logger
 
@@ -49,6 +53,46 @@ class TranslateStrategy(ABC):
             )
         return None
 
+
+class PromptReplaceStrategy(TranslateStrategy):
+    @staticmethod
+    def _recursive_replace(data_structure, replacements):
+        """递归地遍历嵌套数据结构并替换占位符。
+
+        Args:
+            data_structure (Union[dict, list, set, str, Any]): 要遍历的数据结构。
+            replacements (dict): 占位符到替换内容的映射字典。
+
+        Returns:
+            Union[dict, list, str, Any]: 替换后的新数据结构。
+        """
+        if isinstance(data_structure, dict):
+            new_dict = {}
+            for key, value in data_structure.items():
+                new_dict[key] = PromptReplaceStrategy._recursive_replace(value, replacements)
+            return new_dict
+        elif isinstance(data_structure, list):
+            return [PromptReplaceStrategy._recursive_replace(item, replacements) for item in data_structure]
+        elif isinstance(data_structure, set):
+            return {PromptReplaceStrategy._recursive_replace(item, replacements) for item in data_structure}
+        elif isinstance(data_structure, str) and data_structure in replacements:
+            return replacements[data_structure]
+        else:
+            return data_structure
+
+    @abstractmethod
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+        """处理翻译（需由子类实现）。
+
+        Args:
+            provider (Provider): 服务提供者。
+            context (TranslateContext): 处理上下文。
+
+        Raises:
+            NotImplementedError: 子类必须实现此方法。
+        """
+        raise NotImplementedError()
+
 class MetaDataTranslateStrategy(TranslateStrategy):
     """元数据翻译策略。
 
@@ -76,7 +120,17 @@ class MetaDataTranslateStrategy(TranslateStrategy):
             TaskType.METADATA_SYNOPSIS: synopsis_examples,
             TaskType.METADATA_STUDIO: studio_examples
         }
+        self.query_templates = {
+            TaskType.METADATA_SYNOPSIS: SYNOPSIS_USER_QUERY,
+            TaskType.METADATA_TITLE: TITLE_USER_QUERY,
+        }
 
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+        raise NotImplementedError()
+
+
+class BuildWithUUIDMetaDataTranslateStrategy(MetaDataTranslateStrategy):
+    """带UUID前缀的元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
     @staticmethod
     def _build_message_with_uuid(system_prompt, examples, query):
         """构建带有UUID前缀的消息，用于元数据翻译。
@@ -98,6 +152,7 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         messages.append({"role": "user", "content": str(uuid.uuid1()) + query})
         return messages
 
+    @observe
     def process(self, provider: Provider, context:TranslateContext) -> ProcessResult:
         """处理元数据翻译。
 
@@ -128,7 +183,53 @@ class MetaDataTranslateStrategy(TranslateStrategy):
             success=chat_result.success
         )
 
-class BaseSubtitleStrategy(TranslateStrategy):
+
+class ReplaceWithMetaDataTranslateStrategy(MetaDataTranslateStrategy, PromptReplaceStrategy):
+    """使用上下文替换的元数据翻译策略。适用于需要上下文信息的元数据翻译，如简介、标题等。"""
+
+    def _build_message_with_replacements(self, system_prompt, examples, query, context: TranslateContext):
+        """构建带有上下文替换的消息，用于元数据翻译。
+
+        Args:
+            system_prompt (str): 系统提示词。
+            examples (list[tuple]): 示例字典或列表。
+            query(dict): 用户查询模板。
+            context (TranslateContext): 处理上下文。
+
+        Returns:
+            list: 构建好的消息列表。
+        """
+        messages = [{"role": "system", "content": system_prompt}]
+        for question, answer in examples:
+            messages.append({"role": "user", "content": str(question)})
+            messages.append({"role": "assistant", "content": answer})
+        replacements = {
+            "actors_value": context.actors,
+            "actresses_value": context.actress,
+            "synopsis_value": context.text_to_process,
+            "title_value": context.text_to_process,
+        }
+        populated_query = self._recursive_replace(query, replacements)
+        messages.append({"role": "user", "content": json.dumps(populated_query)})
+        return messages
+
+    @observe
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
+        system_prompt = self.system_prompts[context.task_type]
+        examples = self.examples.get(context.task_type, {})
+        query = self.query_templates.get(context.task_type, {})
+        messages = self._build_message_with_replacements(system_prompt, examples, query, context)
+        chat_result = provider.chat(messages)
+        return ProcessResult(
+            task_type=context.task_type,
+            attempt_count=chat_result.attempt_count,
+            time_taken=chat_result.time_taken,
+            content=chat_result.content,
+            success=chat_result.success
+        )
+
+
+class BaseSubtitleStrategy(PromptReplaceStrategy):
     """基础字幕处理策略。
 
     最朴素的字幕翻译策略，直接调用Provider处理。
@@ -147,31 +248,6 @@ class BaseSubtitleStrategy(TranslateStrategy):
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_USER_QUERY,
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY
         }
-
-    @staticmethod
-    def _recursive_replace(data_structure, replacements):
-        """递归地遍历嵌套数据结构并替换占位符。
-
-        Args:
-            data_structure (Union[dict, list, set, str, Any]): 要遍历的数据结构。
-            replacements (dict): 占位符到替换内容的映射字典。
-
-        Returns:
-            Union[dict, list, str, Any]: 替换后的新数据结构。
-        """
-        if isinstance(data_structure, dict):
-            new_dict = {}
-            for key, value in data_structure.items():
-                new_dict[key] = BaseSubtitleStrategy._recursive_replace(value, replacements)
-            return new_dict
-        elif isinstance(data_structure, list):
-            return [BaseSubtitleStrategy._recursive_replace(item, replacements) for item in data_structure]
-        elif isinstance(data_structure, set):
-            return {BaseSubtitleStrategy._recursive_replace(item, replacements) for item in data_structure}
-        elif isinstance(data_structure, str) and data_structure in replacements:
-            return replacements[data_structure]
-        else:
-            return data_structure
 
     @staticmethod
     def _build_messages(system_prompt, user_query, context: TranslateContext, node_text: str):
@@ -359,6 +435,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         """
         raise NotImplementedError("Subclass must implement _create_initial_linked_list")
 
+    @observe
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕，采用尽力而为策略。
 

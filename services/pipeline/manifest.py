@@ -7,14 +7,13 @@ from typing import List
 
 from domain.movie import Video, Movie, Metadata
 from models.enums import PiplinePhase, StageStatus, MetadataType
-from utils.singleton import singleton
 
 
 class Manifest(ABC):
     """
     清单文件抽象基类。
     Attributes:
-        phases (List[PiplinePhase]): 支持的视频级别流水线阶段列表
+        video_phases (List[PiplinePhase]): 支持的视频级别流水线阶段列表
     """
 
     def __init__(self, video_phases: List[PiplinePhase] = None):
@@ -89,8 +88,33 @@ class Manifest(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_movie(self, movie_code: str) -> Movie | None:
+        """
+        根据电影番号从清单中获取完整的Movie对象
 
-@singleton
+        Args:
+            movie_code (str): 电影番号
+
+        Returns:
+            Movie | None: Movie对象，如果不存在则返回None
+        """
+        pass
+
+    @abstractmethod
+    def get_video(self, sha256: str) -> Video | None:
+        """
+        根据SHA256哈希值从清单中获取完整的Video对象
+
+        Args:
+            sha256 (str): 视频文件的SHA256哈希值
+
+        Returns:
+            Video | None: Video对象，如果不存在则返回None
+        """
+        pass
+
+
 class SQLiteManifest(Manifest):
     """
     基于SQLite的清单文件实现类。
@@ -775,6 +799,114 @@ class SQLiteManifest(Manifest):
         finally:
             conn.close()
 
+    def get_movie(self, movie_code: str) -> Movie | None:
+        """
+        根据电影番号从清单中获取完整的Movie对象。
+
+        Args:
+            movie_code (str): 电影番号
+
+        Returns:
+            Movie | None: Movie对象，如果不存在则返回None
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        try:
+            # 1. 查询影片是否存在
+            cursor.execute("SELECT * FROM movie WHERE code = ?", (movie_code,))
+            movie_row = cursor.fetchone()
+
+            if not movie_row:
+                return None
+
+            # 2. 创建Movie对象
+            movie = Movie(code=movie_code)
+
+            # 3. 加载元数据
+            movie.metadata = self.get_metadata(movie_code)
+
+            # 4. 加载术语列表
+            if movie_row['terms']:
+                movie.terms = json.loads(movie_row['terms'])
+
+            # 5. 查询并加载关联的视频
+            cursor.execute("""
+                           SELECT v.sha256
+                           FROM has_a ha
+                                    JOIN video v ON ha.video_sha256 = v.sha256
+                           WHERE ha.movie_code = ?
+                           """, (movie_code,))
+            video_rows = cursor.fetchall()
+
+            for video_row in video_rows:
+                video = self.get_video(video_row['sha256'])
+                if video:
+                    movie.videos.append(video)
+
+            return movie
+
+        finally:
+            conn.close()
+
+    def get_video(self, sha256: str) -> Video | None:
+        """
+        根据SHA256哈希值从清单中获取完整的Video对象。
+
+        Args:
+            sha256 (str): 视频文件的SHA256哈希值
+
+        Returns:
+            Video | None: Video对象，如果不存在则返回None
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        try:
+            # 查询视频基本信息
+            cursor.execute("SELECT * FROM video WHERE sha256 = ?", (sha256,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            # 创建Video对象
+            video = Video(
+                sha256=row['sha256'],
+                filename=row['filename'],
+                suffix=row['suffix'],
+                absolute_path=row['absolute_path']
+            )
+
+            # 加载流水线状态和副产品
+            for phase in self.video_phases:
+                if phase not in self.phase_to_column:
+                    continue
+
+                status_col, path_col = self.phase_to_column[phase]
+
+                # 加载状态
+                if status_col and row[status_col]:
+                    try:
+                        # 将数据库中存储的值转换为StageStatus枚举
+                        status_value = int(row[status_col])
+                        video.status[phase] = StageStatus(status_value)
+                    except (ValueError, TypeError):
+                        video.status[phase] = StageStatus.PENDING
+                else:
+                    video.status[phase] = StageStatus.PENDING
+
+                # 加载副产品路径
+                if path_col and row[path_col]:
+                    video.by_products[phase] = row[path_col]
+
+            return video
+
+        finally:
+            conn.close()
+
     def update_video(self, video: Video):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -979,6 +1111,21 @@ class JsonManifest(Manifest):
         pass
 
     def update_video(self, video: Video):
+        pass
+
+    def get_metadata(self, movie_code: str) -> Metadata | None:
+        pass
+
+    def update_entity(self, entity_type: MetadataType, original_name: str, translated_name: str):
+        pass
+
+    def get_entity(self, entity_type: MetadataType, original_name: str) -> str | None:
+        pass
+
+    def get_movie(self, movie_code: str) -> Movie | None:
+        pass
+
+    def get_video(self, sha256: str) -> Video | None:
         pass
 
     def to_json(self, path: str):

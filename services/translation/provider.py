@@ -3,7 +3,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
-import openai
+import openai as native_openai
+from langfuse import observe, openai
 
 from models.enums import ErrorType
 from models.results import ChatResult
@@ -36,6 +37,7 @@ class Provider(ABC):
         """
         pass
 
+    @observe
     @abstractmethod
     def chat(self, messages, **kwargs) -> ChatResult:
         """发送聊天请求。
@@ -152,6 +154,7 @@ class OpenaiProvider(Provider):
 
         return cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
 
+    @observe
     def chat(self, messages, **kwargs) -> ChatResult:
         """
         发送chat请求，支持自动重试机制
@@ -235,34 +238,34 @@ class OpenaiProvider(Provider):
                     time_taken = int((time.time() - start_time) * 1000)
                     return ChatResult(success=True, attempt_count=attempt_count, time_taken=time_taken, content=content.strip() if content else "")
 
-            except openai.AuthenticationError as e:
+            except native_openai.AuthenticationError as e:
                 # 认证错误 - 不可重试（API密钥无效），触发熔断
                 logger.error(f"OpenAI API authentication error: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.AUTHENTICATION_ERROR)
 
-            except openai.PermissionDeniedError as e:
+            except native_openai.PermissionDeniedError as e:
                 # 权限错误 - 不可重试（账户权限不足），触发熔断
                 logger.error(f"OpenAI API permission denied: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PERMISSION_DENIED)
 
-            except openai.NotFoundError as e:
+            except native_openai.NotFoundError as e:
                 # 资源未找到 - 不可重试（模型不存在等），触发熔断
                 logger.error(f"OpenAI API resource not found: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.NOT_FOUND)
 
-            except openai.UnprocessableEntityError as e:
+            except native_openai.UnprocessableEntityError as e:
                 # 请求格式错误 - 不可重试（参数问题），但不触发熔断（可能是特定请求的问题）
                 logger.error(f"OpenAI API unprocessable entity: {str(e)}")
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.UNPROCESSABLE_ENTITY)
 
-            except openai.APITimeoutError as e:
+            except native_openai.APITimeoutError as e:
                 # 超时错误 - 可重试
                 logger.error(f"OpenAI API timeout error (attempt {attempt + 1}/{max_retries}): {str(e)}")
                 if attempt < max_retries - 1:
@@ -271,7 +274,7 @@ class OpenaiProvider(Provider):
                     continue
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.TIMEOUT)
-            except openai.APIConnectionError as e:
+            except native_openai.APIConnectionError as e:
                 # 连接错误 - 可重试
                 logger.error(f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {e.__cause__}")
                 if attempt < max_retries - 1:
@@ -281,7 +284,7 @@ class OpenaiProvider(Provider):
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.CONNECTION_ERROR)
 
-            except openai.RateLimitError as e:
+            except native_openai.RateLimitError as e:
                 # 速率限制 - 检查是否为额度不足
                 error_message = str(e)
                 # 检查是否是额度不足（insufficient_quota）
@@ -300,7 +303,7 @@ class OpenaiProvider(Provider):
                 time_taken = int((time.time() - start_time) * 1000)
                 return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.RATE_LIMIT)
 
-            except openai.APIStatusError as e:
+            except native_openai.APIStatusError as e:
                 # 根据状态码进行细粒度分类
                 status_code = e.status_code
                 time_taken = int((time.time() - start_time) * 1000)
