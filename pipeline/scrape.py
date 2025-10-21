@@ -229,7 +229,7 @@ if __name__ == "__main__":
         translator=translator,
         manifest=SQLiteManifest(),
     )
-    movie = Movie(code="DDK-001")
+    movie = Movie(code="SSIS-985")
     context.register_movie(movie)
     scraper = ScrapeStage(web_servers=[JavBusWebService()])
     scraper.execute(movie, context)
