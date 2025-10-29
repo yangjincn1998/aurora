@@ -2,3 +2,5 @@
 .idea
 .claude
 ./__pycache
+.run
+output/*.wav
