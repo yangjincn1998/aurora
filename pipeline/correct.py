@@ -4,8 +4,8 @@ from pathlib import Path
 
 from langfuse import observe, get_client
 
-from base import VideoPipelineStage
-from context import PipelineContext
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from domain.movie import Movie, Video
 from models.enums import StageStatus, PiplinePhase, TaskType
 from models.results import ProcessResult, ChatResult
@@ -97,11 +97,9 @@ class CorrectStage(VideoPipelineStage):
         Returns:
             bool: 如果校正阶段未成功完成则返回True。
         """
-        if not video.status.get(PiplinePhase.CORRECT_SUBTITLE, StageStatus.PENDING) != StageStatus.SUCCESS:
-            return False
-        else:
-            srt = Path(video.by_products[PiplinePhase.TRANSCRIBE_AUDIO]).read_text(encoding="utf-8")
-            return self._quality_check(srt, context)
+        # 检查当前阶段状态
+        status = video.status.get(PiplinePhase.CORRECT_SUBTITLE, StageStatus.PENDING)
+        return status != StageStatus.SUCCESS
 
     @observe
     def execute(self, movie: Movie, video: Video, context: PipelineContext):

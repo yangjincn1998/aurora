@@ -3,8 +3,8 @@ from typing import List, Optional
 
 from langfuse import observe, get_client
 
-from base import MoviePipelineStage
-from context import PipelineContext
+from pipeline.base import MoviePipelineStage
+from pipeline.context import PipelineContext
 from domain.movie import Movie, Metadata
 from domain.subtitle import BilingualText, BilingualList
 from models.enums import TaskType, MetadataType
@@ -39,19 +39,19 @@ class ScrapeStage(MoviePipelineStage):
         """
         return "scrape"
 
-    def should_execute(self, movie):
+    def should_execute(self, movie, context: PipelineContext) -> bool:
         """判断是否应该执行抓取阶段。
 
         Args:
             movie (Movie): 待检查的电影对象。
-
+            context(PipelineContext): 用于占位。
         Returns:
             bool: 如果抓取阶段未成功完成则返回True。
         """
         return movie.metadata is None
 
+    @staticmethod
     def _get_translation_with_caching(
-            self,
             context: PipelineContext,
             entity_type: MetadataType,
             original_text: str,
@@ -212,25 +212,37 @@ class ScrapeStage(MoviePipelineStage):
         logger.info("Processing field title...")
         if movie.metadata.title and not movie.metadata.title.translated:
             movie.metadata.title.translated = self._translate_title(context, movie.metadata)
+        elif not movie.metadata.title:
+            logger.warning(f"Field title is empty.")
+        else:
+            logger.info(f"Cache hit field title: {movie.metadata.title}.")
+
 
         logger.info("Processing field synopsis...")
         if movie.metadata.synopsis and not movie.metadata.synopsis.translated:
             movie.metadata.synopsis.translated = self._translate_synopsis(context, movie.metadata)
+        elif not movie.metadata.synopsis:
+            logger.info(f"Field synopsis is empty.")
+        else:
+            logger.info(f"Cache hit field synopsis: {movie.metadata.synopsis}.")
 
         logger.info(f"Completed metadata scraping and translation for {movie.code}")
 
 
 if __name__ == "__main__":
     import dotenv
-
     dotenv.load_dotenv()
     translator = TranslateOrchestrator.from_config_yaml("config.yml")
-    context = PipelineContext(
-        translator=translator,
-        manifest=SQLiteManifest(),
-    )
-    movie = Movie(code="SSIS-985")
-    context.register_movie(movie)
-    scraper = ScrapeStage(web_servers=[JavBusWebService()])
-    scraper.execute(movie, context)
-    context.update_movie(movie)
+    for i in range(400, 411):
+        context = PipelineContext(
+            langfuse_session_id="test-scrape.py",
+            movie_code=f"SONE-{i}",
+            translator=translator,
+            manifest=SQLiteManifest(),
+        )
+
+        movie = Movie(code=f"SSIS-{i}")
+        context.register_movie(movie)
+        scraper = ScrapeStage(web_servers=[JavBusWebService()])
+        scraper.execute(movie, context)
+        context.update_movie(movie)

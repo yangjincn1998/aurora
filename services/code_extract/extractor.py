@@ -3,6 +3,7 @@ from http.client import HTTPException
 from pathlib import Path
 from typing import Set, Optional, List
 
+from services.web_request.javbus_web_service import JavBusWebService
 from services.web_request.missav_web_service import MissAvWebService
 from services.web_request.web_service import WebService
 from utils.logger import get_logger
@@ -38,7 +39,7 @@ class CodeExtractor:
         Args:
             path: .txt文件的地址
         Returns：
-            List[str]: 字符串序列
+            Set[str]: 字符串序列
         """
         path_obj = Path(path)
         if not path_obj.exists():
@@ -70,13 +71,47 @@ class CodeExtractor:
         return re.sub(noise_pattern, ' ', file_name, flags=re.IGNORECASE)
 
     @staticmethod
-    def _greedy_extract_codes(file_name: str) -> List[str]:
+    def _delete_zero(code: str):
+        pattern_g1 = re.compile(r'^([A-Za-z]{2,8})')
+
+        # 这两个模式将用于检查分割点
+        pattern_g2 = re.compile(r'0+')
+        pattern_g3 = re.compile(r'[0-9]{2,7}')
+
+        results = []
+
+        # --- 2. 匹配第一部分 ---
+        match_g1 = pattern_g1.match(code)
+
+        if not match_g1:
+            return []
+
+        group1 = match_g1.group(1)
+
+        # --- 3. 获取剩余字符串 ---
+        remainder = code[match_g1.end():]
+
+        # --- 4. 循环所有可能的分割点 ---
+        for i in range(len(remainder) + 1):
+            part_g2 = remainder[:i]  # 左半部分
+            part_g3 = remainder[i:]  # 右半部分
+
+            is_g2_valid = pattern_g2.fullmatch(part_g2)
+            is_g3_valid = pattern_g3.fullmatch(part_g3)
+
+            if is_g2_valid and is_g3_valid:
+                results.append((group1, part_g2, part_g3))
+
+        return results
+
+    def _greedy_extract_codes(self, file_name: str) -> List[str]:
         """
         (贪婪模式) 从文件名中提取所有可能是番号的字符串。
 
-        包含两个匹配策略：
+        包含三个匹配策略：
         1. 一个通用的模式，匹配 "字母+可选分隔符+数字" 的组合。
         2. 一个专门的模式，匹配 "字母+0/00+数字" 的组合，并将其转换为连字符格式。
+        3. 一个特殊模式，匹配 "数字+字母+可选分隔符+数字" 的组合（如300MIUM-1068）。
 
         Args:
             file_name (str): 待提取的文件名。
@@ -96,16 +131,26 @@ class CodeExtractor:
             standard_code = f"{letters.upper()}-{numbers}"
             candidates.add(standard_code)
 
-        # --- 策略 2: 特殊模式匹配 (处理 0/00 作为分隔符) ---
-        # 匹配 "字母" + "0"或"00" + "数字" 的组合
-        # 例如：vrkm01477, vrprd00070
-        special_pattern = r'([A-Za-z]{2,8})(0*)([0-9]{2,7})'
-        matches_special = re.findall(special_pattern, file_name, re.IGNORECASE)
+            # --- 策略 2: 特殊模式匹配 (处理 0/00 作为分隔符) ---
+            # 匹配 "字母" + "0"或"00" + "数字" 的组合
+            # 例如：vrkm01477, vrprd00070
+            matches_special = self._delete_zero(letters+numbers)
 
-        for letters, separator, numbers in matches_special:
-            # 将 0/00 转换的格式也加入候选集
-            special_code = f"{letters.upper()}-{numbers}"
-            candidates.add(special_code)
+            for z_letters, separator, z_numbers in matches_special:
+                # 将 0/00 转换的格式也加入候选集
+                special_code = f"{z_letters.upper()}-{z_numbers}"
+                candidates.add(special_code)
+
+        # --- 策略 3: 数字前缀模式匹配 (处理如300MIUM-1068格式) ---
+        # 匹配 "数字+字母+可选分隔符+数字" 的组合
+        # 例如：300MIUM-1068
+        prefix_pattern = r'([0-9]{1,4}[A-Za-z]{2,8})\s*[-_]?\s*([0-9]{2,7})'
+        matches_prefix = re.findall(prefix_pattern, file_name, re.IGNORECASE)
+
+        for prefix_letters, numbers in matches_prefix:
+            # 标准化并添加到候选集
+            prefix_code = f"{prefix_letters.upper()}-{numbers}"
+            candidates.add(prefix_code)
 
         if not candidates:
             return []
@@ -213,15 +258,16 @@ class CodeExtractor:
         return None
 
 if __name__ == "__main__":
-    # ==================== 只需添加下面这部分代码 ====================
-    import logging
+    import os
+    import sys
+    import dotenv
 
-    logging.basicConfig(
-        level=logging.INFO,  # 设置日志级别为 INFO
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # 定义日志输出格式
-        datefmt='%Y-%m-%d %H:%M:%S'  # 定义日期格式
-    )
-    # ===============================================================
+    # 添加当前工作目录到Python路径
+    current_dir = os.getcwd()
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+
+    dotenv.load_dotenv()
 
     test_dir = r"D:\4. Collections\6.Adult Videos\raw"
     video_suffixes = [
@@ -234,7 +280,7 @@ if __name__ == "__main__":
     ]
 
     print(f"Found {len(all_videos)} videos")
-    extractor = CodeExtractor(web_servers=[MissAvWebService()])
+    extractor = CodeExtractor(web_servers=[JavBusWebService()])
     for video in all_videos:
         print(f"video name: {video}, extracted code: {extractor.extract_av_code(video)}")
 """

@@ -3,9 +3,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Set, Dict, Optional
 
-from base import MoviePipelineStage, VideoPipelineStage, PipelineStage
-from context import PipelineContext
+from pipeline.base import MoviePipelineStage, VideoPipelineStage, PipelineStage
+from pipeline.context import PipelineContext
 from domain.movie import Movie, Video
+from domain.subtitle import BilingualList, BilingualText
+from pipeline.correct import CorrectStage
 from services.code_extract.extractor import CodeExtractor
 from services.pipeline.manifest import Manifest
 from services.translation.orchestrator import TranslateOrchestrator
@@ -58,12 +60,31 @@ class Pipeline:
             logger.info(f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}")
             self.context.movie_code = movie.code
             # 生成 Langfuse 会话 ID
-            session_id = movie.code + datetime.now().strftime("%Y%m%d")
+            session_id = movie.code + ":" + datetime.now().strftime("%Y-%m-%d")
             self.context.langfuse_session_id = session_id
             # 传递 context 给 stage
             next_stage.execute(movie, self.context)
             # 通过 context 更新 manifest
             self.context.update_movie(movie)
+
+        # 规范化命名
+        for video in movie.videos:
+            actresses = movie.metadata.actresses
+            if isinstance(actresses, BilingualList):
+                actresses_list = actresses.translated if actresses.translated else actresses.original
+            elif isinstance(actresses, list):
+                actresses_list = [a.translated if a.translated else a.original for a in actresses]
+            else:
+                actresses_list = []
+            actresses_text = " ".join(actresses_list)
+            video_name = movie.code + ' ' + movie.metadata.title.translated if movie.metadata.title.translated else movie.metadata.title.original +', ' +actresses_text
+            abs = str(Path(video.absolute_path).parent / (video_name + video.suffix))
+            if video.absolute_path != abs:
+                Path(video.absolute_path).rename(abs)
+                video.absolute_path = abs
+                video.filename = video_name
+            # 同步到数据库中
+            self.context.update_video_location(video, abs, video_name)
 
         # 处理该影片下所有视频的视频级别阶段
         for video in movie.videos:
@@ -78,6 +99,8 @@ class Pipeline:
                 # 传递 context 给 stage
                 next_stage.execute(movie, video, self.context)
                 # 通过 context 更新 manifest
+                if isinstance(next_stage, CorrectStage):
+                    self.context.update_movie(movie)
                 self.context.update_video(video)
 
     def run(self, src_path: str):
@@ -93,7 +116,7 @@ class Pipeline:
             # 启动该影片的处理流程
             self._process_movie(movie)
 
-    def _scan(self, src_dir: str) -> Set[Movie]:
+    def _scan(self, src_dir: str) -> List[Movie]:
         """
         递归地扫描目录下所有字幕视频文件，创建待处理的movie列表
 
@@ -148,4 +171,4 @@ class Pipeline:
 
             movie = movies_map[movie_code]
             movie.videos.append(video_dataclass)
-        return set(movies_map.values())
+        return list(movies_map.values())

@@ -89,8 +89,8 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         raise NotImplementedError()
 
 
-class BuildWithUUIDMetaDataTranslateStrategy(MetaDataTranslateStrategy):
-    """带UUID前缀的元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
+class BuildMetaDataTranslateStrategy(MetaDataTranslateStrategy):
+    """元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
     @staticmethod
     def _build_message_with_uuid(system_prompt, examples, query):
         """构建带有UUID前缀的消息，用于元数据翻译。
@@ -104,12 +104,11 @@ class BuildWithUUIDMetaDataTranslateStrategy(MetaDataTranslateStrategy):
             list: 构建好的消息列表。
         """
         messages = []
-        hint = "\n用户的查询会以uuid开头，请忽略它"
-        messages.append({"role": "system", "content": system_prompt + hint})
+        messages.append({"role": "system", "content": system_prompt})
         for question, answer in examples.items():
-            messages.append({"role": "user", "content": str(uuid.uuid1()) + question})
+            messages.append({"role": "user", "content": question})
             messages.append({"role": "assistant", "content": answer})
-        messages.append({"role": "user", "content": str(uuid.uuid1()) + query})
+        messages.append({"role": "user", "content": query})
         return messages
 
     @observe
@@ -180,7 +179,7 @@ class ReplaceWithMetaDataTranslateStrategy(MetaDataTranslateStrategy):
         examples = self.examples.get(context.task_type, [])
         query = self.query_templates.get(context.task_type, {})
         messages = self._build_message_with_replacements(system_prompt, examples, query, context)
-        chat_result = provider.chat(messages, stream=stream)
+        chat_result = provider.chat(messages, stream=stream, temperature=0.7)
         return ProcessResult(
             task_type=context.task_type,
             attempt_count=chat_result.attempt_count,
@@ -342,7 +341,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             if current.is_processed and current.processed and current.processed.success:
                 # 解析 JSON 内容
                 try:
-                    result_json = json.loads(current.processed.content)
+                    result_json = json.loads(current.processed.content.replace("```json\n", "").replace("```", "").strip())
 
                     # 收集 content
                     if "content" in result_json:

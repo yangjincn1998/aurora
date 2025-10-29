@@ -9,7 +9,7 @@ from models.enums import TaskType
 from models.results import ProcessResult
 from services.translation.provider import Provider
 from services.translation.strategies import TranslateStrategy, SliceSubtitleStrategy, \
-    BuildWithUUIDMetaDataTranslateStrategy, ReplaceWithMetaDataTranslateStrategy
+    BuildMetaDataTranslateStrategy, ReplaceWithMetaDataTranslateStrategy
 
 
 class TranslateOrchestrator:
@@ -230,6 +230,6 @@ class TranslateOrchestrator:
             return SliceSubtitleStrategy(slice_size=550)
         elif task_type in {TaskType.METADATA_DIRECTOR, TaskType.METADATA_ACTOR, TaskType.METADATA_CATEGORY,
                            TaskType.METADATA_STUDIO}:
-            return BuildWithUUIDMetaDataTranslateStrategy()
+            return BuildMetaDataTranslateStrategy()
         else:
             return ReplaceWithMetaDataTranslateStrategy()

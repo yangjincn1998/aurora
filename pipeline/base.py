@@ -61,7 +61,7 @@ class MoviePipelineStage(PipelineStage, ABC):
         """
         pass
 
-    def should_execute(self, movie: Movie, context: PipelineContext) -> bool:
+    def should_execute(self, movie: Movie, context: 'PipelineContext') -> bool:
         """判断当前阶段是否应该执行。
 
         Args:

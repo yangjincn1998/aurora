@@ -3,8 +3,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from base import VideoPipelineStage
-from context import PipelineContext
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from domain.movie import Movie, Video
 from models.enums import PiplinePhase, StageStatus
 from utils.logger import get_logger
@@ -27,12 +27,12 @@ class ExtractAudioStage(VideoPipelineStage):
         """
         return "extract_audio"
 
-    def should_execute(self, movie: Movie, video: Video) -> bool:
+    def should_execute(self, video: Video, context: PipelineContext) -> bool:
         """判断是否应该执行音频提取阶段。
 
         Args:
-            movie (Movie): 电影对象。
             video (Video): 待检查的视频对象。
+            context(PipelineContext): 占位。
 
         Returns:
             bool: 如果音频提取阶段未成功完成则返回True。

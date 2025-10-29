@@ -4,8 +4,8 @@ from pathlib import Path
 
 from langfuse import get_client, observe
 
-from base import VideoPipelineStage
-from context import PipelineContext
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from domain.movie import Video, Movie
 from models.enums import StageStatus, PiplinePhase, TaskType
 from models.results import ProcessResult
@@ -66,7 +66,7 @@ class TranslateStage(VideoPipelineStage):
         if result.success:
             processed_text = result.content
             file_name = video.filename
-            out_path = os.path.join(context.output_dir, movie.code, file_name + ".srt")
+            out_path = os.path.join(context.output_dir, movie.code, file_name + ".translated.srt")
             logger.info(f"The translated srt will be wrote in {out_path}")
             video.by_products[PiplinePhase.TRANSLATE_SUBTITLE] = out_path
             Path(out_path).touch(exist_ok=True)

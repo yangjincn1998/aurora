@@ -57,6 +57,15 @@ class PipelineContext:
         self.manifest.update_movie(movie)
 
     # ========== Video 相关操作 ==========
+    def update_video_location(self, video: Video, filename, absolute_path) -> None:
+        """更新 Video 的文件路径到清单。
+
+        Args:
+            video (Video): 待更新的视频对象
+            filename(str): 视频文件名
+            absolute_path(str): 视频文件绝对路径
+        """
+        self.manifest.update_video_location(video, filename, absolute_path)
 
     def set_video_status(self, video: Video) -> None:
         """从清单中读取并设置 Video 的状态。
