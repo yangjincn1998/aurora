@@ -18,11 +18,13 @@ class ChatResult:
         content (Optional[str]): 返回的文本内容。
         error (Optional[models.enums.ErrorType]): 错误类型（如果失败）。
     """
+
     success: bool
     attempt_count: int  # 调用大模型的次数（包含重试）
     time_taken: int  # 请求耗时（毫秒）
     content: Optional[str]
     error: Optional[ErrorType] = None
+
 
 @dataclass
 class ProcessResult:
@@ -40,6 +42,7 @@ class ProcessResult:
         terms(Optional[List[Term]]): 术语库列表。
         success (bool): 是否处理成功。
     """
+
     task_type: TaskType
     attempt_count: int  # 调用大模型的总次数
     time_taken: int  # 总耗时（毫秒）

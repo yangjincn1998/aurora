@@ -1,7 +1,7 @@
 import json
-from typing import Tuple, Optional
 
 from langfuse import observe, get_client
+
 from models.results import ChatResult
 from pipeline.context import PipelineContext
 from services.translation.provider import Provider
@@ -80,28 +80,34 @@ class QualityChecker:
 - If the sample is structurally broken or pure garbage: `{"qualified": false, "reason": "A very brief, 10-word max explanation."}`
 """
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id,
-                                      tags=["quality_check", "subtitle", context.movie_code])
-        user_query = {
-            "info": "这是一个成人影片的视频字幕",
-            "text": text
-        }
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=["quality_check", "subtitle", context.movie_code],
+        )
+        user_query = {"info": "这是一个成人影片的视频字幕", "text": text}
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": str(user_query)}
+            {"role": "user", "content": str(user_query)},
         ]
         logger.info("Checking subtitle quality with low-cost LLM...")
-        result: ChatResult = self.check_provider.chat(messages, temperature=0.0,
-                                                      response_format={"type": "json_object"})
+        result: ChatResult = self.check_provider.chat(
+            messages, temperature=0.0, response_format={"type": "json_object"}
+        )
         if result.success:
-            logger.info(f"Subtitle quality check completed. Spend {result.time_taken / 1000.0} seconds.")
+            logger.info(
+                f"Subtitle quality check completed. Spend {result.time_taken / 1000.0} seconds."
+            )
             try:
                 result_json_object = json.loads(result.content)
-                logger.info(f"Subtitle quality check completed. Response is {result_json_object}")
+                logger.info(
+                    f"Subtitle quality check completed. Response is {result_json_object}"
+                )
                 if result_json_object.get("qualified", True):  # 乐观估计，默认合格
                     return True
                 else:
-                    logger.warning(f"Subtitle quality based on llm check failed: {result_json_object.get('reason', 'No reason provided')}")
+                    logger.warning(
+                        f"Subtitle quality based on llm check failed: {result_json_object.get('reason', 'No reason provided')}"
+                    )
                     return False
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse quality check result as JSON: {e}")
@@ -112,11 +118,11 @@ class QualityChecker:
 
     def _rule_quality_check(self, text: str) -> bool:
         """
-            使用规则对字幕质量进行检查。若前一条字幕的结束时间和后一条字幕的开始时间相差过大，则认为质量不合格。
-            Args:
-                text (str): 待检查的字幕文本。
-            Returns:
-                bool: 如果字幕质量合格返回True，否则返回False。
+        使用规则对字幕质量进行检查。若前一条字幕的结束时间和后一条字幕的开始时间相差过大，则认为质量不合格。
+        Args:
+            text (str): 待检查的字幕文本。
+        Returns:
+            bool: 如果字幕质量合格返回True，否则返回False。
         """
         try:
             timestamps = self._parse_srt_timestamps(text)
@@ -128,7 +134,9 @@ class QualityChecker:
             # 计算相邻字幕之间的最大间隔
             max_gap = 0
             for i in range(1, len(timestamps)):
-                gap = timestamps[i][0] - timestamps[i-1][1]  # 当前开始时间 - 前一个结束时间
+                gap = (
+                        timestamps[i][0] - timestamps[i - 1][1]
+                )  # 当前开始时间 - 前一个结束时间
                 max_gap = max(max_gap, gap)
 
             logger.info(f"最大时间间隔: {max_gap} 秒")
@@ -145,14 +153,14 @@ class QualityChecker:
 
     def _format_quality_check(self, text: str) -> bool:
         """
-            使用格式对字幕质量进行检查。若字幕文件缺少时间戳或序号逻辑错误，则认为质量不合格。
-            Args:
-                text (str): 待检查的字幕文本。
-            Returns:
-                bool: 如果字幕质量合格返回True，否则返回False。
+        使用格式对字幕质量进行检查。若字幕文件缺少时间戳或序号逻辑错误，则认为质量不合格。
+        Args:
+            text (str): 待检查的字幕文本。
+        Returns:
+            bool: 如果字幕质量合格返回True，否则返回False。
         """
         try:
-            lines = text.strip().split('\n')
+            lines = text.strip().split("\n")
 
             # 检查基本格式
             if not lines:
@@ -176,7 +184,7 @@ class QualityChecker:
 
                     # 检查时间轴行
                     time_line = lines[i].strip()
-                    if '-->' in time_line:
+                    if "-->" in time_line:
                         has_timestamps = True
                         i += 2  # 跳过时间轴行和文本行
                     else:
@@ -208,7 +216,7 @@ class QualityChecker:
             时间戳列表，每个元素为 (start_time, end_time) 的秒数
         """
         timestamps = []
-        lines = srt_content.strip().split('\n')
+        lines = srt_content.strip().split("\n")
 
         i = 0
         while i < len(lines):
@@ -222,9 +230,9 @@ class QualityChecker:
 
                 # 检查是否为时间轴行
                 time_line = lines[i].strip()
-                if '-->' in time_line:
+                if "-->" in time_line:
                     # 解析时间格式 HH:MM:SS,mmm --> HH:MM:SS,mmm
-                    times = time_line.split(' --> ')
+                    times = time_line.split(" --> ")
                     if len(times) == 2:
                         start_seconds = self._parse_srt_time(times[0])
                         end_seconds = self._parse_srt_time(times[1])
@@ -250,15 +258,15 @@ class QualityChecker:
         time_str = time_str.strip()
 
         # 分离毫秒部分
-        if ',' in time_str:
-            time_part, ms_part = time_str.split(',')
+        if "," in time_str:
+            time_part, ms_part = time_str.split(",")
             milliseconds = int(ms_part)
         else:
             time_part = time_str
             milliseconds = 0
 
         # 解析时分秒
-        parts = time_part.split(':')
+        parts = time_part.split(":")
         if len(parts) == 3:
             hours = int(parts[0])
             minutes = int(parts[1])
@@ -271,11 +279,15 @@ class QualityChecker:
 
     def quality_check(self, text: str, context: PipelineContext) -> bool:
         """
-            对字幕质量进行检查。先使用规则和格式检查，若不合格则使用低成本LLM进行检查。
-            Args:
-                text (str): 待检查的字幕文本。
-                context(PipelineContext): 流水线执行上下文。
-            Returns:
-                bool: 如果字幕质量合格返回True，否则返回False。
+        对字幕质量进行检查。先使用规则和格式检查，若不合格则使用低成本LLM进行检查。
+        Args:
+            text (str): 待检查的字幕文本。
+            context(PipelineContext): 流水线执行上下文。
+        Returns:
+            bool: 如果字幕质量合格返回True，否则返回False。
         """
-        return self._format_quality_check(text) and self._rule_quality_check(text) and self._llm_quality_check(text, context)
+        return (
+                self._format_quality_check(text)
+                and self._rule_quality_check(text)
+                and self._llm_quality_check(text, context)
+        )

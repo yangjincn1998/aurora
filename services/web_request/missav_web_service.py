@@ -25,11 +25,7 @@ class MissAvWebService(WebService):
         self._available = True
         # 使用 cloudscraper 来绕过 Cloudflare 保护
         self.scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'windows',
-                'mobile': False
-            }
+            browser={"browser": "chrome", "platform": "windows", "mobile": False}
         )
         self._last_request_time = 0  # 用于请求限流
 
@@ -71,7 +67,11 @@ class MissAvWebService(WebService):
                     logger.info(f"将在{sleep_duration:.2f}s后重试...")
                     time.sleep(sleep_duration)
                 else:
-                    if response and hasattr(response, 'status_code') and response.status_code not in [403, 404]:
+                    if (
+                            response
+                            and hasattr(response, "status_code")
+                            and response.status_code not in [403, 404]
+                    ):
                         logger.error(f"所有请求均失败，服务{self.url}可能出现问题。")
                         raise ConnectionError(f"HTTP请求失败：{e}.")
         raise ConnectionError("未知错误导致失败.")
@@ -92,7 +92,8 @@ class MissAvWebService(WebService):
         info_divs = soup.find_all("div", class_="text-secondary")
         for div in info_divs:
             label_span = div.find("span")
-            if not label_span: continue
+            if not label_span:
+                continue
             label = label_span.text.strip()
 
             if "配信開始日:" in label or "発売日:" in label:
@@ -103,17 +104,26 @@ class MissAvWebService(WebService):
             elif "監督:" in label:
                 director_tag = div.find("a")
                 if director_tag:
-                    metadata.director = BilingualText(original=director_tag.text.strip())
+                    metadata.director = BilingualText(
+                        original=director_tag.text.strip()
+                    )
 
             elif "女優:" in label:
-                metadata.actresses.original = [a.text.strip() for a in div.find_all("a") if a.text.strip()]
+                metadata.actresses.original = [
+                    a.text.strip() for a in div.find_all("a") if a.text.strip()
+                ]
 
             elif "男優:" in label:
-                metadata.actors.original = [a.text.strip() for a in div.find_all("a") if a.text.strip()]
+                metadata.actors.original = [
+                    a.text.strip() for a in div.find_all("a") if a.text.strip()
+                ]
 
             elif "ジャンル:" in label:
                 metadata.categories = BilingualList(
-                    original=[a.text.strip() for a in div.find_all("a") if a.text.strip()])
+                    original=[
+                        a.text.strip() for a in div.find_all("a") if a.text.strip()
+                    ]
+                )
 
             elif "メーカー:" in label:
                 maker_tag = div.find("a")
@@ -128,7 +138,8 @@ class MissAvWebService(WebService):
         info_divs_cn = soup.find_all("div", class_="text-secondary")
         for div in info_divs_cn:
             label_span = div.find("span")
-            if not label_span: continue
+            if not label_span:
+                continue
             label = label_span.text.strip()
 
             # 通用解析逻辑
@@ -136,9 +147,12 @@ class MissAvWebService(WebService):
                 for tag in div.find_all("a"):
                     text = tag.text.strip()
                     # 匹配 "中文名 (日文名)" 格式
-                    match = re.match(r'(.+?)\s*\((.+?)\)', text)
+                    match = re.match(r"(.+?)\s*\((.+?)\)", text)
                     if match:
-                        name_zh, name_ja = match.group(1).strip(), match.group(2).strip()
+                        name_zh, name_ja = (
+                            match.group(1).strip(),
+                            match.group(2).strip(),
+                        )
                         ja_to_cn_map[name_ja] = name_zh
                     # 对于没有括号的（如男优），直接使用
                     elif "男优:" in label and text:
@@ -146,11 +160,15 @@ class MissAvWebService(WebService):
 
         # 填充女优翻译
         if metadata.actresses and metadata.actresses.original:
-            metadata.actresses.translated = [ja_to_cn_map.get(name, name) for name in metadata.actresses.original]
+            metadata.actresses.translated = [
+                ja_to_cn_map.get(name, name) for name in metadata.actresses.original
+            ]
 
         # 填充男优翻译
         if metadata.actors and metadata.actors.original:
-            metadata.actors.translated = [ja_to_cn_map.get(name, name) for name in metadata.actors.original]
+            metadata.actors.translated = [
+                ja_to_cn_map.get(name, name) for name in metadata.actors.original
+            ]
 
         # 填充导演翻译
         if metadata.director and metadata.director.original in ja_to_cn_map:
@@ -159,11 +177,14 @@ class MissAvWebService(WebService):
         # 填充类型和发行商（根据您的要求，注释掉不提取）
         for div in info_divs_cn:
             label_span = div.find("span")
-            if not label_span: continue
+            if not label_span:
+                continue
             label = label_span.text.strip()
 
             if "类型:" in label and metadata.categories:
-                metadata.categories.translated = [a.text.strip() for a in div.find_all("a")]
+                metadata.categories.translated = [
+                    a.text.strip() for a in div.find_all("a")
+                ]
 
             # elif "发行商:" in label and metadata.studio:
             #     # 中文页面通常只显示简称，这里我们不提取，以日文为准
@@ -178,7 +199,7 @@ class MissAvWebService(WebService):
         # --- 步骤 1: 请求日文页面，获取所有高质量的原始信息 ---
         logger.info(f"正在为 {av_code} 获取原始（日文）元数据...")
         try:
-            html_ja = self.request(av_code, lang='ja')
+            html_ja = self.request(av_code, lang="ja")
             soup_ja = BeautifulSoup(html_ja, "html.parser")
             self._parse_ja_page(soup_ja, metadata)
         except ConnectionError as e:
@@ -189,26 +210,31 @@ class MissAvWebService(WebService):
         if metadata.title:
             logger.info(f"正在为 {av_code} 补充翻译（中文）元数据...")
             try:
-                html_cn = self.request(av_code, lang='cn')
+                html_cn = self.request(av_code, lang="cn")
                 soup_cn = BeautifulSoup(html_cn, "html.parser")
                 self._parse_cn_page(soup_cn, metadata)
             except ConnectionError as e:
-                logger.warning(f"无法获取 {av_code} 的中文页面。部分翻译可能缺失。错误: {e}")
+                logger.warning(
+                    f"无法获取 {av_code} 的中文页面。部分翻译可能缺失。错误: {e}"
+                )
 
         # 根据您的要求，清除不想要的翻译
         if metadata.title:
             metadata.title.translated = None
         else:
             return None
-        if metadata.studio: metadata.studio.translated = None
-        if metadata.synopsis: metadata.synopsis.translated = None
-        if metadata.director: metadata.director.translated = None
+        if metadata.studio:
+            metadata.studio.translated = None
+        if metadata.synopsis:
+            metadata.synopsis.translated = None
+        if metadata.director:
+            metadata.director.translated = None
         return metadata
 
     def validate_code(self, av_code: str) -> bool:
         """通过请求中文页面并检查特定文本，来判定 AV 番号是否有效。"""
         try:
-            html = self.request(av_code, lang='cn')
+            html = self.request(av_code, lang="cn")
             is_404_page = "404" in html and "找不到页面" in html
             return not is_404_page
         except ConnectionError:
@@ -216,8 +242,7 @@ class MissAvWebService(WebService):
             return False
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import dotenv
 
     dotenv.load_dotenv()

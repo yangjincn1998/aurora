@@ -68,15 +68,15 @@ CORRECT_SUBTITLE_SYSTEM_PROMPT = """你是一个多阶段、专家级的字幕�
 
 # 新的用户提示（用于校正），增加了具体的风格指令
 CORRECT_SUBTITLE_USER_QUERY = {
-  "command": "请为我校正这份srt字幕",
-  "movie_info": {
-    "source": "这部影片的来源是一部日本成人电影",
-    "metadata": "metadata_value",
-    "terms": "terms_value"
-  },
-  "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现.",
-  "srt_block": "text_value",
-    "additional": None
+    "command": "请为我校正这份srt字幕",
+    "movie_info": {
+        "source": "这部影片的来源是一部日本成人电影",
+        "metadata": "metadata_value",
+        "terms": "terms_value",
+    },
+    "instruction": "在校正时，请注意保留成人电影中露骨的台词，原汁原味地呈现.",
+    "srt_block": "text_value",
+    "additional": None,
 }
 
 
@@ -115,14 +115,14 @@ TRANSLATE_SUBTITLE_PROMPT = """你是一个多阶段、专家级的字幕分析�
 
 # 新的用户提示（用于翻译）
 TRANSLATE_SUBTITLE_USER_QUERY = {
-  "command": "请为我翻译这份srt字幕",
-  "movie_info": {
-    "source": "这部影片的来源是一部日本成人电影",
-      "metadata": "metadata_value",
-      "terms": "terms_value"
-  },
-  "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
-  "srt_block": "text_value"
+    "command": "请为我翻译这份srt字幕",
+    "movie_info": {
+        "source": "这部影片的来源是一部日本成人电影",
+        "metadata": "metadata_value",
+        "terms": "terms_value",
+    },
+    "instruction": "在翻译时，请注意保留成人电影中露骨的台词，原汁原味地呈现",
+    "srt_block": "text_value",
 }
 
 DIRECTOR_SYSTEM_PROMPT = """你是一位专业的日本人名翻译专家，精通将日本人名准确翻译为中文，深知其中“约定俗成”的重要性。
@@ -147,7 +147,7 @@ director_examples = {
     "TOHJIRO": "TOHJIRO",
     "きとるね　川口": "基托鲁内·川口",
     "管野しずか": "管野静香",
-    "タイガー渚": "虎渚"
+    "タイガー渚": "虎渚",
 }
 
 ACTOR_SYSTEM_PROMPT = """你是一位顶级的日本人名翻译专家，拥有庞大的中文娱乐数据库知识，精通将日本人名准确翻译为中文，深知“约定俗成”的至高重要性。
@@ -198,7 +198,7 @@ actor_examples = {
     "Julia": "Julia",
     "小宵こなん": "小宵虎南",
     "樹花凜（七咲楓花）": "树花凛(七咲枫花)",
-    "みづなれい（みずなれい）": "水菜丽"
+    "みづなれい（みずなれい）": "水菜丽",
 }
 
 TITLE_SYSTEM_PROMPT = """你是一位经验丰富的影视标题翻译和营销文案专家。
@@ -234,7 +234,7 @@ TITLE_USER_QUERY = {
     "command": "翻译这段影片标题",
     "actors": "actors_value",
     "actresses": "actresses_value",
-    "title": "title_value"
+    "title": "title_value",
 }
 
 title_examples = [
@@ -244,34 +244,30 @@ title_examples = [
             "actors": [],
             "actresses": [
                 {"original": "花咲いあん", "translated": "花咲一杏"},
-                {"original": "七海ゆあ", "translated": "七海唯亚"}
+                {"original": "七海ゆあ", "translated": "七海唯亚"},
             ],
-            "title": "W解禁飲尿レズビアン 花咲いあん 七海ゆあ 〜オシッコで深め合う愛の絆〜"
+            "title": "W解禁飲尿レズビアン 花咲いあん 七海ゆあ 〜オシッコで深め合う愛の絆〜",
         },
-        "双人解禁 饮尿女同 花咲一杏×七海唯亚 ～用尿液相互加深爱的羁绊～"
+        "双人解禁 饮尿女同 花咲一杏×七海唯亚 ～用尿液相互加深爱的羁绊～",
     ),
     (
         {
             "command": "请为我翻译这个影片标题",
             "actors": [],
-            "actresses": [
-                {"original": "仲村つかさ", "translated": "仲村司"}
-            ],
-            "title": "BBAN-211 僕の彼女の浮気相手は親友の兄貴でした。 仲村つかさ"
+            "actresses": [{"original": "仲村つかさ", "translated": "仲村司"}],
+            "title": "BBAN-211 僕の彼女の浮気相手は親友の兄貴でした。 仲村つかさ",
         },
-        "我女友的出轨对象，是我挚友的哥哥。仲村司"
+        "我女友的出轨对象，是我挚友的哥哥。仲村司",
     ),
     (
         {
             "command": "请为我翻译这个影片标题",
             "actors": [],
-            "actresses": [
-                {"original": "椿りか", "translated": "椿理香"}
-            ],
-            "title": "DVAJ-703 手指とマ○コでザーメンちょいヌキ寸止め繰り返されギリギリ限界チ○ポを爆ピス全ヌキしても責め続け男潮吹きキンタマ枯れるまで杭打ちピストンラッシュ3本番スペシャル 椿りか"
+            "actresses": [{"original": "椿りか", "translated": "椿理香"}],
+            "title": "DVAJ-703 手指とマ○コでザーメンちょいヌキ寸止め繰り返されギリギリ限界チ○ポを爆ピス全ヌキしても責め続け男潮吹きキンタマ枯れるまで杭打ちピストンラッシュ3本番スペシャル 椿りか",
         },
-        "用手指和阴道反复抽插，在极限边缘被爆射，即使完全射出也继续被责罚，直到男性潮吹，睾丸枯竭，被猛烈抽插3次特别版 椿理香"
-    )
+        "用手指和阴道反复抽插，在极限边缘被爆射，即使完全射出也继续被责罚，直到男性潮吹，睾丸枯竭，被猛烈抽插3次特别版 椿理香",
+    ),
 ]
 
 SYNOPSIS_SYSTEM_PROMPT = """你是一位专业的剧情简介翻译和本地化专家，擅长处理包含复杂人物关系和叙事流程的文本。
@@ -293,20 +289,15 @@ synopsis_ja_examples = [
         "command": "请为我翻译这部影片的简介为中文.",
         "actors": [{"original": "平田司", "translated": "平田司"}],
         "actresses": [
-            {
-                "original": "葵つかさ",
-                "translated": "葵司"
-            },
-            {
-                "original": "乙白さやか",
-                "translated": "乙白沙也加"
-            }
+            {"original": "葵つかさ", "translated": "葵司"},
+            {"original": "乙白さやか", "translated": "乙白沙也加"},
         ],
         "synopsis_block": "S1スリム美女優の豪華共演エモドラマ作！僕の彼女は友人2人とルームシェアをしている。僕もたまにその家に遊びにいくのだが年上でクールなルームメイト\
         ‘つかさ’に恋してしまい告白。彼女と一か月間エッチしなければイイ事してあげると言われ僕は禁欲生活の末にセックス。彼女は不在中だったがそれをもう一\
-        人の友人‘さやか’に見られ逆告白、なりゆきでエッチする。こじれた淫らな彼女不在の3日間のハメまくりNTR生活。""S1スリム美女優の豪華共演エモドラマ作！僕の彼女は友人2人とルームシェアをしている。僕もたまにその家に遊びにいくのだが年上でクールなルームメイト\
-        ‘つかさ’に恋してしまい告白。彼女と一か月間エッチしなければイイ事してあげると言われ僕は禁欲生活の末にセックス。彼女は不在中だったがそれをもう一\
         人の友人‘さやか’に見られ逆告白、なりゆきでエッチする。こじれた淫らな彼女不在の3日間のハメまくりNTR生活。"
+                          "S1スリム美女優の豪華共演エモドラマ作！僕の彼女は友人2人とルームシェアをしている。僕もたまにその家に遊びにいくのだが年上でクールなルームメイト\
+                          ‘つかさ’に恋してしまい告白。彼女と一か月間エッチしなければイイ事してあげると言われ僕は禁欲生活の末にセックス。彼女は不在中だったがそれをもう一\
+                          人の友人‘さやか’に見られ逆告白、なりゆきでエッチする。こじれた淫らな彼女不在の3日間のハメまくりNTR生活。",
     }
 ]
 
@@ -323,7 +314,7 @@ SYNOPSIS_USER_QUERY = {
     "command": "请为我翻译这段影片简介",
     "actors": "actors_value",
     "actresses": "actresses_value",
-    "synopsis_block": "synopsis_value"
+    "synopsis_block": "synopsis_value",
 }
 
 STUDIO_SYSTEM_PROMPT = """你是一位熟悉日本品牌和制造商名称的翻译专家。
@@ -339,7 +330,7 @@ STUDIO_SYSTEM_PROMPT = """你是一位熟悉日本品牌和制造商名称的翻
 studio_examples = {
     "エスワン NO.1 STYLE": "S1 NO.1 STYLE",
     "エムズビデオグループ": "M's Video Group",
-    "本中": "本中"
+    "本中": "本中",
 }
 
 CATEGORY_SYSTEM_PROMPT = """你是一位精通日本流行文化和AV行业术语的本地化专家。
@@ -352,8 +343,4 @@ CATEGORY_SYSTEM_PROMPT = """你是一位精通日本流行文化和AV行业术�
 3.  **保持列表格式**：保留原始的逗号分隔格式。
 4.  **只输出结果**：不要添加任何解释。"""
 
-category_examples = {
-    "ドラマ": "剧情",
-    "NTR": "NTR",
-    "ハイビジョン": "高清"
-}
+category_examples = {"ドラマ": "剧情", "NTR": "NTR", "ハイビジョン": "高清"}

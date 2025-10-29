@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Tuple
+
 import yaml
 
 from utils.logger import get_logger
@@ -28,7 +29,7 @@ class Denoiser(ABC):
         pass
 
     @classmethod
-    def from_config(cls, config: dict) -> 'Denoiser':
+    def from_config(cls, config: dict) -> "Denoiser":
         """
         从配置字典创建 Denoiser 实例。
 
@@ -46,7 +47,7 @@ class Denoiser(ABC):
             raise ValueError(f"Unknown denoiser type: {denoiser_type}")
 
     @classmethod
-    def from_yaml_config(cls, yaml_path: str) -> 'Denoiser':
+    def from_yaml_config(cls, yaml_path: str) -> "Denoiser":
         """
         从 YAML 配置文件创建 Denoiser 实例。
 
@@ -59,7 +60,7 @@ class Denoiser(ABC):
         if not Path(yaml_path).exists():
             raise FileNotFoundError(f"YAML config file not found: {yaml_path}")
 
-        with open(yaml_path, 'r', encoding='utf-8') as f:
+        with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         denoiser_config = config.get("denoiser", {})
@@ -71,8 +72,13 @@ class NoiseReduceDenoiser(Denoiser):
     基于 noisereduce 的音频降噪器实现。
     """
 
-    def __init__(self, segment_duration: int = 30, prop_decrease: float = 0.8,
-                 stationary: bool = True, noise_sample_duration: float = 1.0):
+    def __init__(
+            self,
+            segment_duration: int = 30,
+            prop_decrease: float = 0.8,
+            stationary: bool = True,
+            noise_sample_duration: float = 1.0,
+    ):
         """
         初始化 NoiseReduceDenoiser。
 
@@ -88,7 +94,7 @@ class NoiseReduceDenoiser(Denoiser):
         self.noise_sample_duration = noise_sample_duration
 
     @classmethod
-    def from_config(cls, config: dict) -> 'NoiseReduceDenoiser':
+    def from_config(cls, config: dict) -> "NoiseReduceDenoiser":
         """
         从配置字典创建 NoiseReduceDenoiser 实例。
 
@@ -107,7 +113,7 @@ class NoiseReduceDenoiser(Denoiser):
             segment_duration=segment_duration,
             prop_decrease=prop_decrease,
             stationary=stationary,
-            noise_sample_duration=noise_sample_duration
+            noise_sample_duration=noise_sample_duration,
         )
 
     def denoise(self, input_path: str, output_path: str) -> Tuple[bool, str]:
@@ -165,7 +171,7 @@ class NoiseReduceDenoiser(Denoiser):
                         sr=sample_rate,
                         y_noise=noise_clip,
                         prop_decrease=self.prop_decrease,
-                        stationary=self.stationary
+                        stationary=self.stationary,
                     )
                 else:
                     # 如果片段太短，直接使用原片段

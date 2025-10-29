@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+
 class CustomFormatter(logging.Formatter):
     """自定义日志格式化器，包含模块名、行数、日期时间"""
 
@@ -12,14 +13,17 @@ class CustomFormatter(logging.Formatter):
         module_name = os.path.splitext(filename)[0]
 
         # 格式化时间
-        timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
 
         # 自定义日志格式: [时间] [级别] [模块名:行号] 消息
         log_format = f"[{timestamp}] [{record.levelname}] [{module_name}:{record.lineno}] {record.getMessage()}"
 
         return log_format
 
-def setup_logger(name: str = "av_translator", log_level: str = "INFO", log_file: Optional[str] = None) -> logging.Logger:
+
+def setup_logger(
+        name: str = "av_translator", log_level: str = "INFO", log_file: Optional[str] = None
+) -> logging.Logger:
     """
     设置日志系统
 
@@ -54,7 +58,7 @@ def setup_logger(name: str = "av_translator", log_level: str = "INFO", log_file:
         os.makedirs("logs", exist_ok=True)
         log_file = f"logs/av_translator_{datetime.now().strftime('%Y%m%d')}.log"
 
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(getattr(logging, log_level.upper()))
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -63,6 +67,7 @@ def setup_logger(name: str = "av_translator", log_level: str = "INFO", log_file:
     logger.propagate = False
 
     return logger
+
 
 def get_logger(name: str = "av_translator") -> logging.Logger:
     """

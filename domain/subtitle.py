@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 from typing import Optional, List
 
+
 @dataclass
 class Serializable:
     """可序列化接口。
@@ -8,6 +9,7 @@ class Serializable:
     定义一个接口，要求实现to_serializable_dict方法，
     以便将对象转换为可序列化的字典格式。
     """
+
     def _to_serializable_structure_recursive(self, value):
         """递归地将Serializable子类转换为序列化的结构。
 
@@ -22,7 +24,10 @@ class Serializable:
         elif isinstance(value, set):
             return {self._to_serializable_structure_recursive(v) for v in value}
         elif isinstance(value, dict):
-            return {k: self._to_serializable_structure_recursive(v) for k, v in value.items()}
+            return {
+                k: self._to_serializable_structure_recursive(v)
+                for k, v in value.items()
+            }
         elif isinstance(value, tuple):
             return tuple(self._to_serializable_structure_recursive(v) for v in value)
         elif isinstance(value, Serializable):
@@ -39,6 +44,7 @@ class Serializable:
             serial_dict[field_name] = self._to_serializable_structure_recursive(value)
         return serial_dict
 
+
 @dataclass
 class BilingualText(Serializable):
     """可翻译文本数据类。
@@ -49,8 +55,10 @@ class BilingualText(Serializable):
         original (str): 原始文本。
         translated (Optional[str]): 翻译后的文本，可选。
     """
+
     original: str
     translated: Optional[str] = None
+
 
 @dataclass
 class BilingualList(Serializable):
@@ -63,5 +71,6 @@ class BilingualList(Serializable):
         original (List[str]): 原始语言的列表。
         translated (Optional[List[str]]): 翻译语言的列表，可选。
     """
+
     original: List[str]
     translated: Optional[List[str]] = None

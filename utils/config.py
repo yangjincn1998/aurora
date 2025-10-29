@@ -9,6 +9,7 @@ class Config:
     Attributes:
         default_config (dict): 默认配置字典。
     """
+
     default_config = {
         "SLICE_MODELS": {"deepseek/deepseek-chat-v3.1:free", "deepseek-chat"},
     }

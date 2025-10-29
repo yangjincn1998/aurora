@@ -3,11 +3,11 @@ from typing import List, Optional
 
 from langfuse import observe, get_client
 
-from base import MoviePipelineStage
-from context import PipelineContext
 from domain.movie import Movie, Metadata
 from domain.subtitle import BilingualText, BilingualList
 from models.enums import TaskType, MetadataType
+from pipeline.base import MoviePipelineStage
+from pipeline.context import PipelineContext
 from services.pipeline.manifest import SQLiteManifest
 from services.translation.orchestrator import TranslateOrchestrator
 from services.web_request.javbus_web_service import JavBusWebService
@@ -39,23 +39,23 @@ class ScrapeStage(MoviePipelineStage):
         """
         return "scrape"
 
-    def should_execute(self, movie):
+    def should_execute(self, movie, context: PipelineContext) -> bool:
         """判断是否应该执行抓取阶段。
 
         Args:
             movie (Movie): 待检查的电影对象。
-
+            context(PipelineContext): 用于占位。
         Returns:
             bool: 如果抓取阶段未成功完成则返回True。
         """
         return movie.metadata is None
 
+    @staticmethod
     def _get_translation_with_caching(
-            self,
             context: PipelineContext,
             entity_type: MetadataType,
             original_text: str,
-            translation_func
+            translation_func,
     ) -> Optional[str]:
         """
         【重构核心】通用的缓存与翻译逻辑。
@@ -66,7 +66,9 @@ class ScrapeStage(MoviePipelineStage):
         # 1. 检查缓存
         cached_record = context.get_entity(entity_type, original_text)
         if cached_record:
-            logger.info(f"Cache hit for {entity_type.name} '{original_text}': '{cached_record}'")
+            logger.info(
+                f"Cache hit for {entity_type.name} '{original_text}': '{cached_record}'"
+            )
             return cached_record
 
         # 2. 调用翻译器 (通过传入的函数)
@@ -76,7 +78,9 @@ class ScrapeStage(MoviePipelineStage):
         # 3. 更新缓存并返回
         if translate_result and translate_result.success:
             translated_text = translate_result.content
-            logger.info(f"Translated {entity_type.name} '{original_text}' to '{translated_text}'")
+            logger.info(
+                f"Translated {entity_type.name} '{original_text}' to '{translated_text}'"
+            )
             context.update_entity(entity_type, original_text, translated_text)
             return translated_text
 
@@ -84,25 +88,38 @@ class ScrapeStage(MoviePipelineStage):
         return None
 
     @observe
-    def _translate_generic_field(self, context: PipelineContext, original_text: str, metadata_type: MetadataType,
-                                 task_type: TaskType) -> Optional[str]:
+    def _translate_generic_field(
+            self,
+            context: PipelineContext,
+            original_text: str,
+            metadata_type: MetadataType,
+            task_type: TaskType,
+    ) -> Optional[str]:
         """翻译通用的、无额外上下文的元数据字段。"""
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id,
-                                      tags=["scrape", "metadata", metadata_type.name.lower(), "translate"])
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=["scrape", "metadata", metadata_type.name.lower(), "translate"],
+        )
         return self._get_translation_with_caching(
             context=context,
             entity_type=metadata_type,
             original_text=original_text,
-            translation_func=lambda: context.translator.translate_generic_metadata(task_type, original_text)
+            translation_func=lambda: context.translator.translate_generic_metadata(
+                task_type, original_text
+            ),
         )
 
     @observe
-    def _translate_title(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
+    def _translate_title(
+            self, context: PipelineContext, metadata: Metadata
+    ) -> Optional[str]:
         """翻译标题（需要演员上下文）。"""
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id,
-                                      tags=["scrape", "metadata", "title", "translate"])
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=["scrape", "metadata", "title", "translate"],
+        )
         if not metadata.title or not metadata.title.original:
             return None
 
@@ -113,16 +130,20 @@ class ScrapeStage(MoviePipelineStage):
             translation_func=lambda: context.translator.translate_title(
                 text=metadata.title.original,
                 actors=[a.to_serializable_dict() for a in metadata.actors],
-                actress=[a.to_serializable_dict() for a in metadata.actresses]
-            )
+                actress=[a.to_serializable_dict() for a in metadata.actresses],
+            ),
         )
 
     @observe
-    def _translate_synopsis(self, context: PipelineContext, metadata: Metadata) -> Optional[str]:
+    def _translate_synopsis(
+            self, context: PipelineContext, metadata: Metadata
+    ) -> Optional[str]:
         """翻译简介（需要演员上下文）。"""
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id,
-                                      tags=["scrape", "metadata", "synopsis", "translate"])
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=["scrape", "metadata", "synopsis", "translate"],
+        )
         if not metadata.synopsis or not metadata.synopsis.original:
             return None
 
@@ -133,8 +154,8 @@ class ScrapeStage(MoviePipelineStage):
             translation_func=lambda: context.translator.translate_synopsis(
                 text=metadata.synopsis.original,
                 actors=[a.to_serializable_dict() for a in metadata.actors],
-                actress=[a.to_serializable_dict() for a in metadata.actresses]
-            )
+                actress=[a.to_serializable_dict() for a in metadata.actresses],
+            ),
         )
 
     @observe
@@ -146,7 +167,10 @@ class ScrapeStage(MoviePipelineStage):
             context (PipelineContext): 流水线执行上下文。
         """
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id, tags=["scrape", "metadata", movie.code])
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=["scrape", "metadata", movie.code],
+        )
 
         metadata = context.get_metadata(movie.code)
         movie.metadata = metadata
@@ -161,9 +185,13 @@ class ScrapeStage(MoviePipelineStage):
                     context.update_movie(movie)
                     break
                 except Exception as e:
-                    logger.warning(f"server {server.url} failed to get metadata for {movie.code}: {e}")
+                    logger.warning(
+                        f"server {server.url} failed to get metadata for {movie.code}: {e}"
+                    )
             if movie.metadata is None:
-                logger.error(f"All web services failed to get metadata for {movie.code}")
+                logger.error(
+                    f"All web services failed to get metadata for {movie.code}"
+                )
                 return
         # 定义字段到枚举的映射
         field_map = {
@@ -171,7 +199,10 @@ class ScrapeStage(MoviePipelineStage):
             "studio": (MetadataType.STUDIO, TaskType.METADATA_STUDIO),
             "categories": (MetadataType.CATEGORY, TaskType.METADATA_CATEGORY),
             "actors": (MetadataType.ACTOR, TaskType.METADATA_ACTOR),
-            "actresses": (MetadataType.ACTRESS, TaskType.METADATA_ACTOR),  # 注意：女演员也用 METADATA_ACTOR 任务
+            "actresses": (
+                MetadataType.ACTRESS,
+                TaskType.METADATA_ACTOR,
+            ),  # 注意：女演员也用 METADATA_ACTOR 任务
         }
 
         # 优先翻译通用字段，为标题和简介提供上下文
@@ -180,18 +211,23 @@ class ScrapeStage(MoviePipelineStage):
                 continue
             metadata_type, task_type = field_map[field.name]
             value = getattr(movie.metadata, field.name)
-            logger.info(f"Check generic field: \"{field.name}\"...")
+            logger.info(f'Check generic field: "{field.name}"...')
 
             if isinstance(value, BilingualText) and not value.translated:
                 logger.info(f"Processing value {value}...")
-                value.translated = self._translate_generic_field(context, value.original, metadata_type, task_type)
+                value.translated = self._translate_generic_field(
+                    context, value.original, metadata_type, task_type
+                )
             elif isinstance(value, BilingualList) and (
-                    not value.translated or len(value.translated) != len(value.original)):
+                    not value.translated or len(value.translated) != len(value.original)
+            ):
                 logger.info(f"Processing bilingual list object...")
                 translated_list = []
                 for item in value.original:
                     logger.info(f"Processing item {item}...")
-                    translated = self._translate_generic_field(context, item, metadata_type, task_type)
+                    translated = self._translate_generic_field(
+                        context, item, metadata_type, task_type
+                    )
                     translated_list.append(translated if translated else item)
                 value.translated = translated_list
             elif isinstance(value, list):
@@ -200,8 +236,9 @@ class ScrapeStage(MoviePipelineStage):
                     logger.info(f"Check list item {item}...")
                     if isinstance(item, BilingualText) and not item.translated:
                         logger.info(f"item {item} needs process...")
-                        item.translated = self._translate_generic_field(context, item.original, metadata_type,
-                                                                        task_type)
+                        item.translated = self._translate_generic_field(
+                            context, item.original, metadata_type, task_type
+                        )
                     else:
                         logger.info(f"item {item} has been processed.")
             else:
@@ -211,11 +248,23 @@ class ScrapeStage(MoviePipelineStage):
         # 最后翻译需要上下文的字段
         logger.info("Processing field title...")
         if movie.metadata.title and not movie.metadata.title.translated:
-            movie.metadata.title.translated = self._translate_title(context, movie.metadata)
+            movie.metadata.title.translated = self._translate_title(
+                context, movie.metadata
+            )
+        elif not movie.metadata.title:
+            logger.warning(f"Field title is empty.")
+        else:
+            logger.info(f"Cache hit field title: {movie.metadata.title}.")
 
         logger.info("Processing field synopsis...")
         if movie.metadata.synopsis and not movie.metadata.synopsis.translated:
-            movie.metadata.synopsis.translated = self._translate_synopsis(context, movie.metadata)
+            movie.metadata.synopsis.translated = self._translate_synopsis(
+                context, movie.metadata
+            )
+        elif not movie.metadata.synopsis:
+            logger.info(f"Field synopsis is empty.")
+        else:
+            logger.info(f"Cache hit field synopsis: {movie.metadata.synopsis}.")
 
         logger.info(f"Completed metadata scraping and translation for {movie.code}")
 
@@ -225,6 +274,7 @@ if __name__ == "__main__":
 
     dotenv.load_dotenv()
     translator = TranslateOrchestrator.from_config_yaml("config.yml")
+
     context = PipelineContext(
         translator=translator,
         manifest=SQLiteManifest(),

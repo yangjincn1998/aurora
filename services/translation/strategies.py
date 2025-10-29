@@ -8,19 +8,41 @@ from data_structures.subtitle_node import SubtitleBlock
 from models.context import TranslateContext
 from models.enums import TaskType
 from models.results import ProcessResult
-from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
-    director_examples, actor_examples, category_examples, studio_examples, synopsis_examples, title_examples, \
-    CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, \
-    TRANSLATE_SUBTITLE_USER_QUERY, STUDIO_SYSTEM_PROMPT, SYNOPSIS_SYSTEM_PROMPT, TITLE_SYSTEM_PROMPT, \
-    SYNOPSIS_USER_QUERY, \
-    TITLE_USER_QUERY
+from services.translation.prompts import (
+    DIRECTOR_SYSTEM_PROMPT,
+    ACTOR_SYSTEM_PROMPT,
+    CATEGORY_SYSTEM_PROMPT,
+    director_examples,
+    actor_examples,
+    category_examples,
+    studio_examples,
+    synopsis_examples,
+    title_examples,
+    CORRECT_SUBTITLE_SYSTEM_PROMPT,
+    CORRECT_SUBTITLE_USER_QUERY,
+    TRANSLATE_SUBTITLE_PROMPT,
+    TRANSLATE_SUBTITLE_USER_QUERY,
+    STUDIO_SYSTEM_PROMPT,
+    SYNOPSIS_SYSTEM_PROMPT,
+    TITLE_SYSTEM_PROMPT,
+    SYNOPSIS_USER_QUERY,
+    TITLE_USER_QUERY,
+)
 from services.translation.provider import Provider
 from utils.logger import get_logger
-from utils.prompt_utils import build_message_with_uuid, build_message_with_replacements, build_subtitle_messages
-from utils.subtitle_utils import update_translate_context, adaptive_slice_subtitle, \
-    aggregate_successful_results
+from utils.prompt_utils import (
+    build_message_with_uuid,
+    build_message_with_replacements,
+    build_subtitle_messages,
+)
+from utils.subtitle_utils import (
+    update_translate_context,
+    adaptive_slice_subtitle,
+    aggregate_successful_results,
+)
 
-logger = get_logger("av_translator")
+logger = get_logger(__name__)
+
 
 class TranslateStrategy(ABC):
     """
@@ -31,7 +53,8 @@ class TranslateStrategy(ABC):
         stream(bool): 是否启用流式输入。
         temperature(float): 模型调用的温度。
     """
-    def __init__(self, stream:bool=False, temperature:float=1.0):
+
+    def __init__(self, stream: bool = False, temperature: Optional[float] = None):
         self.stream = stream
         self.temperature = temperature
 
@@ -40,9 +63,10 @@ class TranslateStrategy(ABC):
         """子类需要实现此方法，但签名可以不同"""
         pass
 
-
     @staticmethod
-    def _check_provider_available(provider, task_type: TaskType) -> Optional[ProcessResult]:
+    def _check_provider_available(
+            provider, task_type: TaskType
+    ) -> Optional[ProcessResult]:
         """
         检查 Provider 是否可用（熔断检查）
         如果 Provider 已熔断，返回失败的 ProcessResult
@@ -50,16 +74,19 @@ class TranslateStrategy(ABC):
 
         这是所有 Strategy 子类的通用逻辑，用于快速失败
         """
-        if hasattr(provider, 'available') and not provider.available:
-            logger.warning(f"Provider {provider.model} is unavailable (circuit breaker triggered), failing fast")
+        if hasattr(provider, "available") and not provider.available:
+            logger.warning(
+                f"Provider {provider.model} is unavailable (circuit breaker triggered), failing fast"
+            )
             return ProcessResult(
                 task_type=task_type,
                 attempt_count=0,
                 time_taken=0,
                 content=None,
-                success=False
+                success=False,
             )
         return None
+
 
 class MetaDataTranslateStrategy(TranslateStrategy):
     """元数据翻译策略。
@@ -70,6 +97,7 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         system_prompts (dict): 各任务类型对应的系统提示词。
         examples (dict): 各任务类型对应的示例。
     """
+
     def __init__(self, stream, temperature):
         """初始化元数据翻译策略。"""
         super().__init__(stream, temperature)
@@ -79,7 +107,7 @@ class MetaDataTranslateStrategy(TranslateStrategy):
             TaskType.METADATA_CATEGORY: CATEGORY_SYSTEM_PROMPT,
             TaskType.METADATA_TITLE: TITLE_SYSTEM_PROMPT,
             TaskType.METADATA_SYNOPSIS: SYNOPSIS_SYSTEM_PROMPT,
-            TaskType.METADATA_STUDIO: STUDIO_SYSTEM_PROMPT
+            TaskType.METADATA_STUDIO: STUDIO_SYSTEM_PROMPT,
         }
         self.examples = {
             TaskType.METADATA_DIRECTOR: director_examples,
@@ -87,12 +115,34 @@ class MetaDataTranslateStrategy(TranslateStrategy):
             TaskType.METADATA_CATEGORY: category_examples,
             TaskType.METADATA_TITLE: title_examples,
             TaskType.METADATA_SYNOPSIS: synopsis_examples,
-            TaskType.METADATA_STUDIO: studio_examples
+            TaskType.METADATA_STUDIO: studio_examples,
         }
         self.query_templates = {
             TaskType.METADATA_SYNOPSIS: SYNOPSIS_USER_QUERY,
             TaskType.METADATA_TITLE: TITLE_USER_QUERY,
         }
+
+    def _call_provider(self, provider: Provider, messages, context) -> ProcessResult:
+        """调用 Provider 并返回 ProcessResult。
+
+        Args:
+            provider (Provider): 服务提供者。
+            messages: 构建好的消息列表。
+            context: 处理上下文。
+        """
+        if self.temperature is not None:
+            chat_result = provider.chat(
+                messages, stream=self.stream, temperature=self.temperature
+            )
+        else:
+            chat_result = provider.chat(messages, stream=self.stream)
+        return ProcessResult(
+            task_type=context.task_type,
+            attempt_count=chat_result.attempt_count,
+            time_taken=chat_result.time_taken,
+            content=chat_result.content,
+            success=chat_result.success,
+        )
 
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         raise NotImplementedError()
@@ -100,7 +150,7 @@ class MetaDataTranslateStrategy(TranslateStrategy):
 
 class SimpleMetaDataStrategy(MetaDataTranslateStrategy):
     """带UUID前缀的元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
-    
+
     @observe
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理元数据翻译。
@@ -113,44 +163,34 @@ class SimpleMetaDataStrategy(MetaDataTranslateStrategy):
             ProcessResult: 翻译结果。
         """
         # 熔断检查：如果 Provider 已熔断，快速失败
-        circuit_breaker_result = self._check_provider_available(provider, context.task_type)
+        circuit_breaker_result = self._check_provider_available(
+            provider, context.task_type
+        )
         if circuit_breaker_result is not None:
             return circuit_breaker_result
 
         # 调用 Provider
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, {})
-        messages = build_message_with_uuid(system_prompt, examples, context.text_to_process)
-        chat_result = provider.chat(messages, stream=self.stream, temperature=self.temperature)
-
-        # 将 ChatResult 转换为 ProcessResult
-        return ProcessResult(
-            task_type=context.task_type,
-            attempt_count=chat_result.attempt_count,
-            time_taken=chat_result.time_taken,
-            content=chat_result.content,
-            success=chat_result.success
+        messages = build_message_with_uuid(
+            system_prompt, examples, context.text_to_process
         )
+        return self._call_provider(provider, messages, context)
 
 
 class ContextualMetaDataStrategy(MetaDataTranslateStrategy):
     """使用上下文替换的元数据翻译策略。适用于需要上下文信息的元数据翻译，如简介、标题等。"""
 
-    
     @observe
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, [])
         query = self.query_templates.get(context.task_type, {})
-        messages = build_message_with_replacements(system_prompt, examples, query, context)
-        chat_result = provider.chat(messages, stream=self.stream, temperature=self.temperature)
-        return ProcessResult(
-            task_type=context.task_type,
-            attempt_count=chat_result.attempt_count,
-            time_taken=chat_result.time_taken,
-            content=chat_result.content,
-            success=chat_result.success
+        messages = build_message_with_replacements(
+            system_prompt, examples, query, context
         )
+        return self._call_provider(provider, messages, context)
+
 
 class BaseSubtitleStrategy(TranslateStrategy):
     """基础字幕处理策略。
@@ -161,19 +201,19 @@ class BaseSubtitleStrategy(TranslateStrategy):
         system_prompts (dict): 各任务类型对应的系统提示词。
         user_queries (dict): 各任务类型对应的用户查询模板。
     """
-    def __init__(self, stream:bool=False, temperature:float=1.0):
+
+    def __init__(self, stream: bool = False, temperature: float = 1.0):
         """初始化基础字幕处理策略。"""
         super().__init__(stream, temperature)
         self.system_prompts = {
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_SYSTEM_PROMPT,
-            TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_PROMPT
+            TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_PROMPT,
         }
         self.user_queries = {
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_USER_QUERY,
-            TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY
+            TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY,
         }
 
-    
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕（需由子类实现）。
 
@@ -186,12 +226,14 @@ class BaseSubtitleStrategy(TranslateStrategy):
         """
         raise NotImplementedError()
 
+
 class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
     """尽力而为的字幕处理策略。
 
     维护字幕块链表，当节点失败时如果台词数>=10则三等分后重试。
     子类只需实现_create_initial_linked_list方法来创建初始链表。
     """
+
     def _create_initial_linked_list(self, text: str) -> SubtitleBlock:
         """创建初始链表。
 
@@ -222,7 +264,9 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             ProcessResult: 处理结果。
         """
         # 熔断检查：如果 Provider 已熔断，快速失败
-        circuit_breaker_result = self._check_provider_available(provider, context.task_type)
+        circuit_breaker_result = self._check_provider_available(
+            provider, context.task_type
+        )
         if circuit_breaker_result is not None:
             return circuit_breaker_result
 
@@ -237,33 +281,42 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         total_api_time = 0  # provider 层的累计时间
 
         # 处理链表
-        head, total_attempt_count, total_api_time = self._process_linked_list_with_best_effort(
-            context.task_type, provider, context, head, total_attempt_count, total_api_time, self.stream
+        head, total_attempt_count, total_api_time = (
+            self._process_linked_list_with_best_effort(
+                provider,
+                context,
+                head,
+                total_attempt_count,
+                total_api_time,
+                self.stream,
+                self.temperature,
+            )
         )
 
         # Strategy 层总耗时
         strategy_time_taken = int((time.time() - start_time) * 1000)  # 毫秒
 
         # 聚合结果
-        return aggregate_successful_results(head, context.task_type, total_attempt_count, strategy_time_taken)
+        return aggregate_successful_results(
+            head, context.task_type, total_attempt_count, strategy_time_taken
+        )
 
-    def _process_linked_list_with_best_effort(self,
-                                              task_type,
-                                              provider,
-                                              context,
-                                              head: SubtitleBlock,
-                                              total_attempt_count: int,
-                                              total_api_time: int,
-                                              stream: bool = False,
-                                              temperature: float = 1.0,
-                                              ) -> Tuple[SubtitleBlock, int, int]:
+    def _process_linked_list_with_best_effort(
+            self,
+            provider,
+            context,
+            head: SubtitleBlock,
+            total_attempt_count: int,
+            total_api_time: int,
+            stream: bool = False,
+            temperature: Optional[float] = None,
+    ) -> Tuple[SubtitleBlock, int, int]:
         """尽力而为地处理链表。
 
         逐个处理节点，失败时如果台词数>=10则三等分节点并插入链表。
         在处理过程中动态累积术语库，使后续节点能够利用之前识别的术语。
 
         Args:
-            task_type: 任务类型。
             provider: 服务提供者。
             context: 元数据。
             head: 链表头节点。
@@ -289,12 +342,28 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 continue
 
             # 处理当前节点
-            system_prompt = self.system_prompts[task_type]
-            user_query = self.user_queries[task_type]
-            messages = build_subtitle_messages(system_prompt, user_query, context, current.origin)
+            system_prompt = self.system_prompts[context.task_type]
+            user_query = self.user_queries[context.task_type]
+            messages = build_subtitle_messages(
+                system_prompt, user_query, context, current.origin
+            )
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
-            result = provider.chat(messages, stream=stream, temperature=temperature, timeout=500, response_format={"type": "json_object"})
+            if temperature is not None:
+                result = provider.chat(
+                    messages,
+                    stream=stream,
+                    temperature=temperature,
+                    timeout=500,
+                    response_format={"type": "json_object"},
+                )
+            else:
+                result = provider.chat(
+                    messages,
+                    stream=stream,
+                    timeout=500,
+                    response_format={"type": "json_object"},
+                )
 
             # 累加调用次数和API时间（无论成功失败）
             total_attempt_count += result.attempt_count
@@ -311,7 +380,9 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             else:
                 # 失败，检查是否需要三等分
                 subtitle_count = current.count_subtitles()
-                logger.warning(f"Node processing failed, subtitle count: {subtitle_count}")
+                logger.warning(
+                    f"Node processing failed, subtitle count: {subtitle_count}"
+                )
 
                 if subtitle_count >= 10:
                     # 三等分
@@ -331,6 +402,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                     current = current.next
         return new_head, total_attempt_count, total_api_time
 
+
 class NoSliceSubtitleStrategy(BestEffortSubtitleStrategy):
     """不分片字幕处理策略。
 
@@ -347,6 +419,7 @@ class NoSliceSubtitleStrategy(BestEffortSubtitleStrategy):
             SubtitleBlock: 包含整个文本的单节点链表。
         """
         return SubtitleBlock(origin=text, is_processed=False)
+
 
 class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
     """分片字幕处理策略。
@@ -366,7 +439,6 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         super().__init__(stream, temperature)
         self.slice_size = slice_size
 
-    
     def _create_initial_linked_list(self, text: str) -> Optional[SubtitleBlock]:
         """创建多节点链表（预分片）。
 

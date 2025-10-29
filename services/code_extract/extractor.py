@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Set, Optional, List
 
 from services.web_request.javbus_web_service import JavBusWebService
-from services.web_request.missav_web_service import MissAvWebService
 from services.web_request.web_service import WebService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
 class CodeExtractor:
     """
     用于从文件名中提取番号的服务类，核心服务extract_av_code
@@ -23,8 +24,12 @@ class CodeExtractor:
         noise_path(str): 记录噪声的文件, 目前写死为service/code_extract/noise.txt
     """
 
-    def __init__(self, web_servers: List[WebService], prefix_path: str = str(Path(__file__).parent / "prefix.txt"),
-                 noise_path: str = str(Path(__file__).parent / "noise.txt")):
+    def __init__(
+            self,
+            web_servers: List[WebService],
+            prefix_path: str = str(Path(__file__).parent / "prefix.txt"),
+            noise_path: str = str(Path(__file__).parent / "noise.txt"),
+    ):
         self.web_services = web_servers
         self.prefix_path = prefix_path
         self.noise_path = noise_path
@@ -45,7 +50,11 @@ class CodeExtractor:
         if not path_obj.exists():
             return set()
         content = path_obj.read_text(encoding="utf-8")
-        return {line.strip().upper() for line in content.strip().splitlines() if line.strip()}
+        return {
+            line.strip().upper()
+            for line in content.strip().splitlines()
+            if line.strip()
+        }
 
     @staticmethod
     def _wash_noises(file_name: str, noises: Set[str]) -> str:
@@ -68,15 +77,15 @@ class CodeExtractor:
 
         # 使用 re.sub 进行全局、不区分大小写的替换
         # 将噪音替换为空格，以防意外拼接单词
-        return re.sub(noise_pattern, ' ', file_name, flags=re.IGNORECASE)
+        return re.sub(noise_pattern, " ", file_name, flags=re.IGNORECASE)
 
     @staticmethod
     def _delete_zero(code: str):
-        pattern_g1 = re.compile(r'^([A-Za-z]{2,8})')
+        pattern_g1 = re.compile(r"^([A-Za-z]{2,8})")
 
         # 这两个模式将用于检查分割点
-        pattern_g2 = re.compile(r'0+')
-        pattern_g3 = re.compile(r'[0-9]{2,7}')
+        pattern_g2 = re.compile(r"0+")
+        pattern_g3 = re.compile(r"[0-9]{2,7}")
 
         results = []
 
@@ -123,7 +132,7 @@ class CodeExtractor:
 
         # --- 策略 1: 主模式匹配 (处理常规格式) ---
         # 匹配 "字母+可选分隔符+数字" 的组合
-        main_pattern = r'([A-Za-z]{2,8})\s*[-_]?\s*([0-9]{2,7})'
+        main_pattern = r"([A-Za-z]{2,8})\s*[-_]?\s*([0-9]{2,7})"
         matches_main = re.findall(main_pattern, file_name, re.IGNORECASE)
 
         for letters, numbers in matches_main:
@@ -134,7 +143,7 @@ class CodeExtractor:
             # --- 策略 2: 特殊模式匹配 (处理 0/00 作为分隔符) ---
             # 匹配 "字母" + "0"或"00" + "数字" 的组合
             # 例如：vrkm01477, vrprd00070
-            matches_special = self._delete_zero(letters+numbers)
+            matches_special = self._delete_zero(letters + numbers)
 
             for z_letters, separator, z_numbers in matches_special:
                 # 将 0/00 转换的格式也加入候选集
@@ -144,7 +153,7 @@ class CodeExtractor:
         # --- 策略 3: 数字前缀模式匹配 (处理如300MIUM-1068格式) ---
         # 匹配 "数字+字母+可选分隔符+数字" 的组合
         # 例如：300MIUM-1068
-        prefix_pattern = r'([0-9]{1,4}[A-Za-z]{2,8})\s*[-_]?\s*([0-9]{2,7})'
+        prefix_pattern = r"([0-9]{1,4}[A-Za-z]{2,8})\s*[-_]?\s*([0-9]{2,7})"
         matches_prefix = re.findall(prefix_pattern, file_name, re.IGNORECASE)
 
         for prefix_letters, numbers in matches_prefix:
@@ -177,7 +186,7 @@ class CodeExtractor:
         unknown = []
 
         for code in candidates:
-            prefix = code.split('-')[0]
+            prefix = code.split("-")[0]
             if prefix in prefixes:
                 known.append(code)
             else:
@@ -212,12 +221,16 @@ class CodeExtractor:
             return None
         logger.info(f"Found candidates: {code_candidates}")
         if len(code_candidates) == 1:
-            logger.info(f"Only one candidate '{code_candidates[0]}' found, skipping validation.")
+            logger.info(
+                f"Only one candidate '{code_candidates[0]}' found, skipping validation."
+            )
             code = code_candidates[0]
-            prefix = code.split('-')[0]
+            prefix = code.split("-")[0]
             # 将前缀写入前缀文件
             known_prefixes.add(prefix)
-            Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
+            Path(self.prefix_path).write_text(
+                "\n".join(sorted(known_prefixes)), encoding="utf-8"
+            )
             logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
             return code
 
@@ -226,15 +239,18 @@ class CodeExtractor:
         prioritized_candidates = self._filter_by_prefix(code_candidates, known_prefixes)
         logger.info(f"Prioritized candidates: {prioritized_candidates}")
         if len(prioritized_candidates) == 1:
-            logger.info(f"Only one prioritized candidate '{prioritized_candidates[0]}' found, skipping validation.")
+            logger.info(
+                f"Only one prioritized candidate '{prioritized_candidates[0]}' found, skipping validation."
+            )
             code = prioritized_candidates[0]
-            prefix = code.split('-')[0]
+            prefix = code.split("-")[0]
             # 将前缀写入前缀文件
             known_prefixes.add(prefix)
-            Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
+            Path(self.prefix_path).write_text(
+                "\n".join(sorted(known_prefixes)), encoding="utf-8"
+            )
             logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
             return code
-
 
         # 第三步：在线验证
         for candidate in prioritized_candidates:
@@ -242,20 +258,31 @@ class CodeExtractor:
                 logger.debug(f"Validating '{candidate}' with service: {service.url}")
                 try:
                     if service.validate_code(candidate):
-                        logger.info(f"Validation successful! Final code is '{candidate}'.")
+                        logger.info(
+                            f"Validation successful! Final code is '{candidate}'."
+                        )
                         code = candidate
-                        prefix = code.split('-')[0]
+                        prefix = code.split("-")[0]
                         # 将前缀写入前缀文件
                         known_prefixes.add(prefix)
-                        Path(self.prefix_path).write_text('\n'.join(sorted(known_prefixes)), encoding="utf-8")
-                        logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+                        Path(self.prefix_path).write_text(
+                            "\n".join(sorted(known_prefixes)), encoding="utf-8"
+                        )
+                        logger.info(
+                            f"Successfully extract code`{code}` of file: `{file_name}`"
+                        )
                         return code
                 except HTTPException as e:
-                    logger.warning(f"Web service {service.url} failed for code '{candidate}': {e}.")
+                    logger.warning(
+                        f"Web service {service.url} failed for code '{candidate}': {e}."
+                    )
                     continue  # 尝试下一个 service
 
-        logger.error(f"All candidates failed online validation for file: '{file_name}'.")
+        logger.error(
+            f"All candidates failed online validation for file: '{file_name}'."
+        )
         return None
+
 
 if __name__ == "__main__":
     import os
@@ -271,7 +298,15 @@ if __name__ == "__main__":
 
     test_dir = r"D:\4. Collections\6.Adult Videos\raw"
     video_suffixes = [
-        '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mpg', '.mpeg'
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".mpg",
+        ".mpeg",
     ]
     all_videos = [
         video.name
@@ -282,7 +317,9 @@ if __name__ == "__main__":
     print(f"Found {len(all_videos)} videos")
     extractor = CodeExtractor(web_servers=[JavBusWebService()])
     for video in all_videos:
-        print(f"video name: {video}, extracted code: {extractor.extract_av_code(video)}")
+        print(
+            f"video name: {video}, extracted code: {extractor.extract_av_code(video)}"
+        )
 """
 video name: sivr00315vrv18khia1.mp4, extracted code: expected:SIVR-315
 video name: sivr00315vrv18khia2.mp4, extracted code: expected:SIVR-315

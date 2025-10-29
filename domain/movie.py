@@ -10,6 +10,7 @@ class Term(TypedDict):
     recommended_chinese: NotRequired[str]
     description: NotRequired[str]
 
+
 @dataclass
 class Metadata(Serializable):
     """影片元数据数据类。
@@ -27,6 +28,7 @@ class Metadata(Serializable):
         actors (List[BilingualText]|BilingualList): 男演员列表。
         actresses (List[BilingualText]|BilingualList): 女演员列表。
     """
+
     title: Optional[BilingualText] = None
     release_date: Optional[str] = None
     director: Optional[BilingualText] = None
@@ -36,6 +38,7 @@ class Metadata(Serializable):
     categories: Union[List[BilingualText], BilingualList, None] = None
     actors: List[BilingualText] | BilingualList = field(default_factory=list)
     actresses: List[BilingualText] | BilingualList = field(default_factory=list)
+
 
 @dataclass
 class Video:
@@ -51,6 +54,7 @@ class Video:
         status (Dict[PiplinePhase, StageStatus]): 文件经过各个流水线的情况。
         by_products (Dict[PiplinePhase, Any]): 流水线各阶段的副产品的存储路径。
     """
+
     sha256: str
     filename: str
     suffix: str
@@ -71,6 +75,7 @@ class Movie:
         terms (List[Term]): 术语库列表。
         videos (List[Video]): 关联的视频文件列表。
     """
+
     code: str
     metadata: Optional[Metadata] = None
     terms: List[Term] = field(default_factory=list)

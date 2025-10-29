@@ -15,13 +15,14 @@ class MetadataType(Enum):
         TITLE: 标题实体类型。
         SYNOPSIS: 简介实体类型。
     """
-    STUDIO = auto()
-    DIRECTOR = auto()
-    CATEGORY = auto()
-    ACTOR = auto()
-    ACTRESS = auto()
-    TITLE = auto()
-    SYNOPSIS = auto()
+
+    STUDIO = "studio"
+    DIRECTOR = "director"
+    CATEGORY = "category"
+    ACTOR = "actor"
+    ACTRESS = "actress"
+    TITLE = "title"
+    SYNOPSIS = "synopsis"
 
 
 class TaskType(Enum):
@@ -39,14 +40,15 @@ class TaskType(Enum):
         CORRECT_SUBTITLE: 字幕校正任务。
         TRANSLATE_SUBTITLE: 字幕翻译任务。
     """
-    METADATA_STUDIO = auto()
-    METADATA_DIRECTOR = auto()
-    METADATA_ACTOR = auto()
-    METADATA_CATEGORY = auto()
-    METADATA_TITLE = auto()
-    METADATA_SYNOPSIS = auto()
-    CORRECT_SUBTITLE = auto()
-    TRANSLATE_SUBTITLE = auto()
+
+    METADATA_STUDIO = "metadata_studio"
+    METADATA_DIRECTOR = "metadata_director"
+    METADATA_ACTOR = "metadata_actor"
+    METADATA_CATEGORY = "metadata_category"
+    METADATA_TITLE = "metadata_title"
+    METADATA_SYNOPSIS = "metadata_synopsis"
+    CORRECT_SUBTITLE = "correct_subtitle"
+    TRANSLATE_SUBTITLE = "translate_subtitle"
 
 
 class StageStatus(Enum):
@@ -59,9 +61,10 @@ class StageStatus(Enum):
         FAILED: 执行失败。
         PENDING: 待执行。
     """
-    SUCCESS = auto()
-    FAILED = auto()
-    PENDING = auto()
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    PENDING = "pending"
 
 
 class ErrorType(Enum):
@@ -83,6 +86,7 @@ class ErrorType(Enum):
         TIMEOUT: 请求超时，可重试错误。
         OTHER: 其他未分类错误。
     """
+
     # === 不可恢复错误（应触发熔断）===
     AUTHENTICATION_ERROR = auto()  # 认证失败（API密钥无效）
     PERMISSION_DENIED = auto()  # 权限不足
@@ -94,7 +98,6 @@ class ErrorType(Enum):
 
     # === 请求相关错误（可能需要调整请求，目前只支持一种）===
     LENGTH_LIMIT = auto()  # 输出因达到最大token限制而被截断
-
 
     # === 可重试错误 ===
     RATE_LIMIT = auto()  # 速率限制（可等待后重试）
@@ -118,12 +121,13 @@ class PiplinePhase(Enum):
         CORRECT_SUBTITLE: 字幕校正阶段。
         TRANSLATE_SUBTITLE: 字幕翻译阶段。
     """
-    PROCESSING_METADATA = auto()
 
-    EXTRACT_AUDIO = auto()
-    DENOISE_AUDIO = auto()
-    TRANSCRIBE_AUDIO = auto()
+    PROCESSING_METADATA = "pipeline_phase_processing_metadata"
 
-    CORRECT_SUBTITLE = auto()
-    TRANSLATE_SUBTITLE = auto()
-    BILINGUAL_SUBTITLE = auto()
+    EXTRACT_AUDIO = "pipeline_phase_extract_audio"
+    DENOISE_AUDIO = "pipeline_phase_denoise_audio"
+    TRANSCRIBE_AUDIO = "pipeline_phase_transcribe_audio"
+
+    CORRECT_SUBTITLE = "pipeline_phase_correct_subtitle"
+    TRANSLATE_SUBTITLE = "pipeline_phase_translate_subtitle"
+    BILINGUAL_SUBTITLE = "pipeline_phase_bilingual_subtitle"

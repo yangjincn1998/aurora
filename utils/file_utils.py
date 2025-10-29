@@ -1,11 +1,14 @@
 """
 文件处理工具函数
 """
+
 import hashlib
 import os
 
 
-def calculate_partial_sha256(file_path: str, size: int = 1024 * 1024, from_center: bool = True) -> str:
+def calculate_partial_sha256(
+        file_path: str, size: int = 1024 * 1024, from_center: bool = True
+) -> str:
     """
     计算文件部分内容的 SHA256 哈希值。
 
@@ -38,7 +41,7 @@ def calculate_partial_sha256(file_path: str, size: int = 1024 * 1024, from_cente
         # 获取文件大小
         file_size = os.path.getsize(file_path)
 
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             if from_center:
                 # 从中心位置采样
                 if file_size <= size:

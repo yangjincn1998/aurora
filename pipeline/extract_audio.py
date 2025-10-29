@@ -1,12 +1,11 @@
 import json
-import os
 import subprocess
 from pathlib import Path
 
-from pipeline.base import VideoPipelineStage
-from pipeline.context import PipelineContext
 from domain.movie import Movie, Video
 from models.enums import PiplinePhase, StageStatus
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -71,22 +70,23 @@ class ExtractAudioStage(VideoPipelineStage):
             # -ar 16000: 采样率16kHz（Whisper推荐）
             # -ac 1: 单声道
             command = [
-                'ffmpeg',
-                '-i', str(video_path),
-                '-vn',  # 不处理视频
-                '-acodec', 'pcm_s16le',  # PCM编码
-                '-ar', '16000',  # 16kHz采样率
-                '-ac', '1',  # 单声道
-                '-y',  # 覆盖已存在文件
-                str(output_path)
+                "ffmpeg",
+                "-i",
+                str(video_path),
+                "-vn",  # 不处理视频
+                "-acodec",
+                "pcm_s16le",  # PCM编码
+                "-ar",
+                "16000",  # 16kHz采样率
+                "-ac",
+                "1",  # 单声道
+                "-y",  # 覆盖已存在文件
+                str(output_path),
             ]
 
             logger.info(f"Extracting audio from {video.filename}...")
             result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=3600  # 1小时超时
+                command, capture_output=True, text=True, timeout=3600  # 1小时超时
             )
 
             if result.returncode != 0:
@@ -105,7 +105,9 @@ class ExtractAudioStage(VideoPipelineStage):
             audio_duration = self._get_duration(output_path)
 
             if video_duration is None:
-                logger.warning(f"Could not get video duration for {video.filename}, skipping duration check")
+                logger.warning(
+                    f"Could not get video duration for {video.filename}, skipping duration check"
+                )
             elif audio_duration is None:
                 logger.error(f"Could not get audio duration for {output_path}")
                 video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
@@ -141,7 +143,8 @@ class ExtractAudioStage(VideoPipelineStage):
             logger.error(f"Failed to extract audio from {video.filename}: {e}")
             video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
 
-    def _get_duration(self, file_path: Path) -> float | None:
+    @staticmethod
+    def _get_duration(file_path: Path) -> float | None:
         """使用ffprobe获取媒体文件的时长。
 
         Args:
@@ -152,19 +155,17 @@ class ExtractAudioStage(VideoPipelineStage):
         """
         try:
             command = [
-                'ffprobe',
-                '-v', 'error',
-                '-show_entries', 'format=duration',
-                '-of', 'json',
-                str(file_path)
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                str(file_path),
             ]
 
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
                 logger.error(f"ffprobe error for {file_path}: {result.stderr}")
@@ -172,7 +173,7 @@ class ExtractAudioStage(VideoPipelineStage):
 
             # 解析JSON输出
             data = json.loads(result.stdout)
-            duration_str = data.get('format', {}).get('duration')
+            duration_str = data.get("format", {}).get("duration")
 
             if duration_str is None:
                 logger.error(f"Duration not found in ffprobe output for {file_path}")
@@ -189,14 +190,3 @@ class ExtractAudioStage(VideoPipelineStage):
         except Exception as e:
             logger.error(f"Failed to get duration for {file_path}: {e}")
             return None
-
-
-if __name__ == '__main__':
-    extractor = ExtractAudioStage()
-    from context import PipelineContext
-
-    context = PipelineContext(manifest=None, output_dir=os.path.join(os.getcwd(), "output"))
-    movie = Movie(code="MVSD-374")
-    video = Video(sha256="mock", filename="MVSD-374-uncensored-nyap2p.com", suffix="mp4",
-                  absolute_path=r"D:\4. Collections\6.Adult Videos\raw\MVSD-374-uncensored-HD\MVSD-374-uncensored-nyap2p.com.mp4")
-    extractor.execute(movie, video, context)

@@ -1,7 +1,5 @@
 from pathlib import Path
-from typing import Optional
 
-from domain import movie
 from domain.movie import Movie, Video
 from models.enums import PiplinePhase, StageStatus
 from pipeline.base import VideoPipelineStage
@@ -37,7 +35,7 @@ class TranscribeAudioStage(VideoPipelineStage):
         self.transcription_service = TranscriptionService(
             transcriber_factory=self.transcriber_factory,
             quality_checker=self.quality_checker,
-            max_retries=2
+            max_retries=2,
         )
 
     @property
@@ -86,15 +84,21 @@ class TranscribeAudioStage(VideoPipelineStage):
             return
 
         # 使用转写服务进行转写和质量检测
-        success, srt_content, failure_reason = self.transcription_service.transcribe_with_quality_check(
-            audio_path=input_audio
+        success, srt_content, failure_reason = (
+            self.transcription_service.transcribe_with_quality_check(
+                audio_path=input_audio, context=context
+            )
         )
 
         if success and srt_content:
             # 确定输出路径
-            output_path = Path(context.output_dir) / movie.code / f"{video.filename}.raw.srt"
+            output_path = (
+                    Path(context.output_dir) / movie.code / f"{video.filename}.raw.srt"
+            )
             output_path.write_text(srt_content, encoding="utf-8")
-            logger.info(f"Audio {video.filename} has been transcribed and quality checked successfully.")
+            logger.info(
+                f"Audio {video.filename} has been transcribed and quality checked successfully."
+            )
             logger.info(f"Transcribed audio saved to {str(output_path)}")
 
             video.by_products[PiplinePhase.TRANSCRIBE_AUDIO] = str(output_path)

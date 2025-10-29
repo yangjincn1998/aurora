@@ -7,6 +7,7 @@ class WebService(ABC):
     """
     实现Web服务的方法，之所以要做一个抽象类是因为，一些网站会换网址，不能在一棵树上吊死
     """
+
     @property
     @abstractmethod
     def available(self) -> bool:
@@ -27,6 +28,7 @@ class WebService(ABC):
             str: 该网站返回的html文本
         """
         pass
+
     @abstractmethod
     def get_metadata(self, av_code: str) -> Metadata:
         """
@@ -37,6 +39,7 @@ class WebService(ABC):
             Metadata: 这部av的元数据信息
         """
         pass
+
     @abstractmethod
     def validate_code(self, av_code: str) -> bool:
         """

@@ -15,7 +15,12 @@ class TranscriptionService:
     集成音频转写、质量检测和重试机制。
     """
 
-    def __init__(self, transcriber_factory: TranscriberFactory, quality_checker: QualityChecker, max_retries: int = 2):
+    def __init__(
+            self,
+            transcriber_factory: TranscriberFactory,
+            quality_checker: QualityChecker,
+            max_retries: int = 2,
+    ):
         """初始化转写服务。
 
         Args:
@@ -28,7 +33,7 @@ class TranscriptionService:
         self.max_retries = max_retries
 
     @classmethod
-    def from_yaml(cls, yaml_path: str) -> 'TranscriptionService':
+    def from_yaml(cls, yaml_path: str) -> "TranscriptionService":
         """从YAML配置文件创建TranscriptionService实例。
 
         Args:
@@ -42,7 +47,9 @@ class TranscriptionService:
 
         return cls(transcriber_factory, quality_checker)
 
-    def transcribe_with_quality_check(self, audio_path: str, context: 'PipelineContext') -> Tuple[bool, Optional[str], Optional[str]]:
+    def transcribe_with_quality_check(
+            self, audio_path: str, context: "PipelineContext"
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
         """转写音频并进行质量检测，支持重试机制。
 
         Args:
@@ -73,7 +80,9 @@ class TranscriptionService:
                         return False, None, "转写结果为空"
 
                 # 质量检测
-                quality_passed = self.quality_checker.quality_check(srt_content, context)
+                quality_passed = self.quality_checker.quality_check(
+                    srt_content, context
+                )
 
                 if not quality_passed:
                     logger.warning(f"质量检测失败")

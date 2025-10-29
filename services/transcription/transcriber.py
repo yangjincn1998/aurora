@@ -1,8 +1,9 @@
-from pathlib import Path
-from typing import Optional, Tuple
-import re
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Optional
+
 from faster_whisper import WhisperModel
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,6 +13,7 @@ class Transcriber(ABC):
     """
     音频转写器。
     """
+
     @abstractmethod
     def transcribe(self, path: str) -> Optional[str]:
         """
@@ -34,8 +36,15 @@ class WhisperTranscriber(Transcriber):
     基于 Faster Whisper 的音频转写器实现。
     """
 
-    def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "float16",
-                 language: str = "ja", beam_size: int = 6, vad_filter: bool = True):
+    def __init__(
+            self,
+            model_size: str = "medium",
+            device: str = "cuda",
+            compute_type: str = "float16",
+            language: str = "ja",
+            beam_size: int = 6,
+            vad_filter: bool = True,
+    ):
         """
         初始化 WhisperTranscriber。
 
@@ -52,7 +61,9 @@ class WhisperTranscriber(Transcriber):
         self.vad_filter = vad_filter
 
         try:
-            self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+            self.model = WhisperModel(
+                model_size, device=device, compute_type=compute_type
+            )
         except Exception as e:
             logger.warning(f"Failed to load {device} faster-whisper model: {e}")
             logger.info("Falling back to CPU mode with int8")
@@ -76,7 +87,7 @@ class WhisperTranscriber(Transcriber):
                 path,
                 beam_size=self.beam_size,
                 vad_filter=self.vad_filter,
-                language=self.language
+                language=self.language,
             )
 
             srt_content = []
@@ -85,7 +96,7 @@ class WhisperTranscriber(Transcriber):
                 end_time = self._format_time_srt(segment.end)
                 text = segment.text.strip()
 
-                srt_content.append(str(i+1))
+                srt_content.append(str(i + 1))
                 srt_content.append(f"{start_time} --> {end_time}")
                 srt_content.append(text)
                 srt_content.append("")

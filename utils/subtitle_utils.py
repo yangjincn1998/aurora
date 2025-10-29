@@ -2,6 +2,7 @@ import json
 from typing import List
 
 from utils.logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -30,8 +31,10 @@ def adaptive_slice_subtitle(srt_content: str, slice_size: int) -> List[str]:
     num_slices = (total_blocks + slice_size - 1) // slice_size
     base_size = total_blocks // num_slices
     remainder = total_blocks % num_slices
-    logger.info(f"Adaptive slice: total lines number: {total_blocks}, slice size: {slice_size} -> "
-               f"plan to slice to {num_slices} slices, base size: {base_size}, remainder: {remainder}")
+    logger.info(
+        f"Adaptive slice: total lines number: {total_blocks}, slice size: {slice_size} -> "
+        f"plan to slice to {num_slices} slices, base size: {base_size}, remainder: {remainder}"
+    )
     final_slices = []
     current_index = 0
     for i in range(num_slices):
@@ -56,7 +59,7 @@ def should_split_node(current, threshold: int = 10) -> bool:
     Returns:
         bool: 是否需要拆分。
     """
-    if not hasattr(current, 'count_subtitles'):
+    if not hasattr(current, "count_subtitles"):
         return False
     subtitle_count = current.count_subtitles()
     logger.warning(f"Node processing failed, subtitle count: {subtitle_count}")
@@ -92,9 +95,9 @@ def process_chain_with_retry(head, processor_func, should_retry_func=None):
         result = processor_func(current)
 
         # 累加统计信息
-        if hasattr(result, 'attempt_count'):
+        if hasattr(result, "attempt_count"):
             total_attempt_count += result.attempt_count
-        if hasattr(result, 'time_taken'):
+        if hasattr(result, "time_taken"):
             total_api_time += result.time_taken
 
         if result.success:
@@ -171,27 +174,32 @@ def update_translate_context(context, chat_result):
             return context
 
         # 以术语中的 japanese 作为主键
-        history_primary_keys = {term['japanese'] for term in context.terms} if context.terms else set()
+        history_primary_keys = (
+            {term["japanese"] for term in context.terms} if context.terms else set()
+        )
         for term in result_terms:
-            if term['japanese'] not in history_primary_keys:
+            if term["japanese"] not in history_primary_keys:
                 context.terms.append(term)
-                history_primary_keys.add(term['japanese'])
-                term_ja, term_ch = term['japanese'], term.get('recommended_chinese', '')
+                history_primary_keys.add(term["japanese"])
+                term_ja, term_ch = term["japanese"], term.get("recommended_chinese", "")
                 logger.info(f"Updated term: {term_ja} -> {term_ch}")
 
         # 返回新的上下文对象（保持原有结构）
         from models.context import TranslateContext
+
         return TranslateContext(
             task_type=context.task_type,
             metadata=context.metadata,
             terms=context.terms,
-            text_to_process=context.text_to_process
+            text_to_process=context.text_to_process,
         )
     except json.JSONDecodeError:
         return context
 
 
-def aggregate_successful_results(head, task_type, total_attempt_count: int, total_time_taken: int):
+def aggregate_successful_results(
+        head, task_type, total_attempt_count: int, total_time_taken: int
+):
     """聚合链表中所有成功节点的处理结果。
 
     合并所有content和differences，重新排序字幕序号。
@@ -251,5 +259,5 @@ def aggregate_successful_results(head, task_type, total_attempt_count: int, tota
         content=renumbered_content,
         terms=all_terms if all_terms else None,
         differences=all_differences if all_differences else None,
-        success=renumbered_content is not None
+        success=renumbered_content is not None,
     )

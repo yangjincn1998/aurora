@@ -1,10 +1,11 @@
-import sys
 import os
+import sys
+
 from faster_whisper import WhisperModel
 
 
 def format_time_srt(seconds):
-    """ 将秒数转换为 SRT 时间格式 (HH:MM:SS,mmm) """
+    """将秒数转换为 SRT 时间格式 (HH:MM:SS,mmm)"""
     hours = int(seconds // 3600)
     seconds %= 3600
     minutes = int(seconds // 60)
@@ -43,7 +44,9 @@ def transcribe_audio_to_srt(audio_path):
 
     # --- 开始转写 ---
     # vad_filter=True 可以帮助过滤掉没有语音的片段
-    segments, info = model.transcribe(audio_path, beam_size=5, vad_filter=True, language="ja")
+    segments, info = model.transcribe(
+        audio_path, beam_size=5, vad_filter=True, language="ja"
+    )
 
     print(f"检测到语言: {info.language} (置信度: {info.language_probability:.2f})")
 

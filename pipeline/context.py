@@ -2,6 +2,7 @@
 
 定义流水线执行过程中 Stage 所需的共享资源和操作接口。
 """
+
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -29,6 +30,7 @@ class PipelineContext:
         translator (TranslateOrchestrator): 所以翻译活动要用到的翻译编排器
         langfuse_session_id (str|None): Langfuse 会话 ID，用于跟踪翻译请求
     """
+
     manifest: Manifest
     translator: TranslateOrchestrator
     movie_code: str = ""
@@ -85,7 +87,9 @@ class PipelineContext:
 
     # ========== 元数据实体操作 ==========
 
-    def get_entity(self, entity_type: MetadataType, original_name: str) -> Optional[str]:
+    def get_entity(
+            self, entity_type: MetadataType, original_name: str
+    ) -> Optional[str]:
         """从清单中查询元数据实体的翻译。
 
         支持查询：导演、演员、类别等元数据的已翻译版本。
@@ -100,7 +104,9 @@ class PipelineContext:
         """
         return self.manifest.get_entity(entity_type, original_name)
 
-    def update_entity(self, entity_type: MetadataType, original_name: str, translated_name: str) -> None:
+    def update_entity(
+            self, entity_type: MetadataType, original_name: str, translated_name: str
+    ) -> None:
         """更新元数据实体的翻译到清单。
 
         将新翻译的元数据（导演、演员、类别等）保存到数据库。

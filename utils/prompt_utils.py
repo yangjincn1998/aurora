@@ -2,6 +2,7 @@ import json
 import uuid
 from typing import List, Dict, Any, Union
 
+
 def recursive_replace(data_structure, replacements):
     """递归地遍历嵌套数据结构并替换占位符。
 
@@ -27,7 +28,9 @@ def recursive_replace(data_structure, replacements):
         return data_structure
 
 
-def build_message_with_uuid(system_prompt: str, examples: Dict[str, str], query: str) -> List[Dict[str, str]]:
+def build_message_with_uuid(
+        system_prompt: str, examples: Dict[str, str], query: str
+) -> List[Dict[str, str]]:
     """构建带有UUID前缀的消息，用于元数据翻译。
 
     Args:
@@ -48,8 +51,9 @@ def build_message_with_uuid(system_prompt: str, examples: Dict[str, str], query:
     return messages
 
 
-def build_message_with_replacements(system_prompt: str, examples: List[tuple], query: Dict,
-                                  context) -> List[Dict[str, str]]:
+def build_message_with_replacements(
+        system_prompt: str, examples: List[tuple], query: Dict, context
+) -> List[Dict[str, str]]:
     """构建带有上下文替换的消息，用于元数据翻译。
 
     Args:
@@ -76,8 +80,9 @@ def build_message_with_replacements(system_prompt: str, examples: List[tuple], q
     return messages
 
 
-def build_subtitle_messages(system_prompt: str, user_query: Dict[str, Any],
-                           context, node_text: str) -> List[Dict[str, str]]:
+def build_subtitle_messages(
+        system_prompt: str, user_query: Dict[str, Any], context, node_text: str
+) -> List[Dict[str, str]]:
     """构建字幕处理消息。
 
     Args:
@@ -98,6 +103,6 @@ def build_subtitle_messages(system_prompt: str, user_query: Dict[str, Any],
     user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content_json}
+        {"role": "user", "content": user_content_json},
     ]
     return messages

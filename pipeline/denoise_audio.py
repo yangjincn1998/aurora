@@ -64,7 +64,9 @@ class DenoiseAudioStage(VideoPipelineStage):
         success, message = self.denoiser.denoise(input_audio_path, str(output_path))
 
         if success:
-            logger.info(f"Audio {video.filename} has been denoised successfully: {message}")
+            logger.info(
+                f"Audio {video.filename} has been denoised successfully: {message}"
+            )
             video.by_products[PiplinePhase.DENOISE_AUDIO] = str(output_path)
             video.status[PiplinePhase.DENOISE_AUDIO] = StageStatus.SUCCESS
         else:

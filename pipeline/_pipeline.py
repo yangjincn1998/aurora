@@ -1,12 +1,12 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Set, Dict, Optional
+from typing import List, Dict, Optional
 
+from domain.movie import Movie, Video
+from domain.subtitle import BilingualList
 from pipeline.base import MoviePipelineStage, VideoPipelineStage, PipelineStage
 from pipeline.context import PipelineContext
-from domain.movie import Movie, Video
-from domain.subtitle import BilingualList, BilingualText
 from pipeline.correct import CorrectStage
 from services.code_extract.extractor import CodeExtractor
 from services.pipeline.manifest import Manifest
@@ -16,27 +16,29 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class Pipeline:
-    def __init__(self,
-                 movie_stages: List[MoviePipelineStage],
-                 video_stages: List[VideoPipelineStage],
-                 code_extractor: CodeExtractor,
-                 manifest: Manifest,
-                 translator: TranslateOrchestrator,
-                 output_dir: str = os.path.join(os.getcwd(), 'output'),
-                 ):
+    def __init__(
+            self,
+            movie_stages: List[MoviePipelineStage],
+            video_stages: List[VideoPipelineStage],
+            code_extractor: CodeExtractor,
+            manifest: Manifest,
+            translator: TranslateOrchestrator,
+            output_dir: str = os.path.join(os.getcwd(), "output"),
+    ):
         self.movie_stages = movie_stages
         self.video_stages = video_stages
         self.all_stages = movie_stages + video_stages
         self.code_extractor = code_extractor
         # 创建 PipelineContext，封装 manifest
         self.context = PipelineContext(
-            manifest=manifest,
-            output_dir=output_dir,
-            translator=translator
+            manifest=manifest, output_dir=output_dir, translator=translator
         )
 
-    def _get_next_stage(self, movie: Movie, video: Optional[Video] = None) -> Optional[PipelineStage]:
+    def _get_next_stage(
+            self, movie: Movie, video: Optional[Video] = None
+    ) -> Optional[PipelineStage]:
         """根据实体当前状态，决定下一个要执行的阶段。"""
         target_entity = video if video else movie
         stages = self.video_stages if video else self.movie_stages
@@ -57,7 +59,9 @@ class Pipeline:
                 logger.info(f"影片 {movie.code} 的所有影片级阶段处理完毕。")
                 break
 
-            logger.info(f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}")
+            logger.info(
+                f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}"
+            )
             self.context.movie_code = movie.code
             # 生成 Langfuse 会话 ID
             session_id = movie.code + ":" + datetime.now().strftime("%Y-%m-%d")
@@ -71,20 +75,30 @@ class Pipeline:
         for video in movie.videos:
             actresses = movie.metadata.actresses
             if isinstance(actresses, BilingualList):
-                actresses_list = actresses.translated if actresses.translated else actresses.original
+                actresses_list = (
+                    actresses.translated if actresses.translated else actresses.original
+                )
             elif isinstance(actresses, list):
-                actresses_list = [a.translated if a.translated else a.original for a in actresses]
+                actresses_list = [
+                    a.translated if a.translated else a.original for a in actresses
+                ]
             else:
                 actresses_list = []
             actresses_text = " ".join(actresses_list)
-            video_name = movie.code + ' ' + movie.metadata.title.translated if movie.metadata.title.translated else movie.metadata.title.original +', ' +actresses_text
-            abs = str(Path(video.absolute_path).parent / (video_name + video.suffix))
-            if video.absolute_path != abs:
-                Path(video.absolute_path).rename(abs)
-                video.absolute_path = abs
+            video_name = (
+                movie.code + " " + movie.metadata.title.translated
+                if movie.metadata.title.translated
+                else movie.metadata.title.original + ", " + actresses_text
+            )
+            new_abs_path = str(
+                Path(video.absolute_path).parent / (video_name + video.suffix)
+            )
+            if video.absolute_path != new_abs_path:
+                Path(video.absolute_path).rename(new_abs_path)
+                video.absolute_path = new_abs_path
                 video.filename = video_name
             # 同步到数据库中
-            self.context.update_video_location(video, abs, video_name)
+            self.context.update_video_location(video, new_abs_path, video_name)
 
         # 处理该影片下所有视频的视频级别阶段
         for video in movie.videos:
@@ -95,7 +109,9 @@ class Pipeline:
                     logger.info(f"视频 {video.filename} 的所有视频级阶段处理完毕。")
                     break
 
-                logger.info(f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}")
+                logger.info(
+                    f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}"
+                )
                 # 传递 context 给 stage
                 next_stage.execute(movie, video, self.context)
                 # 通过 context 更新 manifest
@@ -134,12 +150,18 @@ class Pipeline:
             logger.error(f"Directory {dir_path} does not exist.")
             raise FileNotFoundError(f"Directory {dir_path} does not exist.")
         video_suffixes = [
-            '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mpg', '.mpeg'
+            ".mp4",
+            ".mkv",
+            ".avi",
+            ".mov",
+            ".wmv",
+            ".flv",
+            ".webm",
+            ".mpg",
+            ".mpeg",
         ]
         video_to_process = [
-            file
-            for ext in video_suffixes
-            for file in dir_path.rglob(f"*{ext}")
+            file for ext in video_suffixes for file in dir_path.rglob(f"*{ext}")
         ]
         logger.info(f"Found {len(video_to_process)} videos.")
         movies_map: Dict[str, Movie] = {}
@@ -147,14 +169,16 @@ class Pipeline:
             video_path = str(video.resolve())
             partial_hash = calculate_partial_sha256(video_path)
             if not partial_hash:
-                logger.warning(f"Could not calculate SHA256 for {video.name}. Skipping this file.")
+                logger.warning(
+                    f"Could not calculate SHA256 for {video.name}. Skipping this file."
+                )
                 continue
 
             video_dataclass = Video(
                 sha256=partial_hash,
                 filename=video.stem,
                 suffix=video.suffix,
-                absolute_path=video_path
+                absolute_path=video_path,
             )
             # 在扫描阶段不再需要 set_video_status，统一移到 run 方法中
             av_code = self.code_extractor.extract_av_code(video.name)
@@ -163,8 +187,9 @@ class Pipeline:
             else:
                 # 找不到番号的集中在"匿名影片"下
                 logger.warning(
-                    f"Could not extract AV code from filename: {video.name}. Add this file to the 'anonymous movie'.")
-                movie_code = 'anonymous'
+                    f"Could not extract AV code from filename: {video.name}. Add this file to the 'anonymous movie'."
+                )
+                movie_code = "anonymous"
 
             if movie_code not in movies_map:
                 movies_map[movie_code] = Movie(code=movie_code)

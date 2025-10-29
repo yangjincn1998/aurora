@@ -6,8 +6,10 @@
 """
 
 from pathlib import Path
-from typing import List, Tuple, Optional, Any
+from typing import List, Optional, Any
+
 import pysrt
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,7 +43,8 @@ def _format_time_ass(time_obj) -> str:
 
 def _format_seconds_to_ass(seconds: float) -> str:
     """将秒数格式化为ASS时间戳 (H:MM:SS.cc)。"""
-    if seconds < 0: seconds = 0
+    if seconds < 0:
+        seconds = 0
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     sec = int(seconds % 60)
@@ -49,8 +52,11 @@ def _format_seconds_to_ass(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{sec:02d}.{csec:02d}"
 
 
-def _find_matching_chinese_subtitle(jap_sub: pysrt.SubRipItem, chinese_subs: List[pysrt.SubRipItem],
-                                   time_tolerance_ms: int = 500) -> Optional[pysrt.SubRipItem]:
+def _find_matching_chinese_subtitle(
+        jap_sub: pysrt.SubRipItem,
+        chinese_subs: List[pysrt.SubRipItem],
+        time_tolerance_ms: int = 500,
+) -> Optional[pysrt.SubRipItem]:
     """
     根据时间戳匹配找到对应的中文字幕。
 
@@ -70,8 +76,10 @@ def _find_matching_chinese_subtitle(jap_sub: pysrt.SubRipItem, chinese_subs: Lis
         ch_end = ch_sub.end.ordinal
 
         # 检查时间重叠
-        if (abs(jap_start - ch_start) <= time_tolerance_ms and
-            abs(jap_end - ch_end) <= time_tolerance_ms):
+        if (
+                abs(jap_start - ch_start) <= time_tolerance_ms
+                and abs(jap_end - ch_end) <= time_tolerance_ms
+        ):
             return ch_sub
 
     return None
@@ -92,17 +100,23 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
 
     # 辅助函数：获取翻译文本
     def _get_translated_text(bilingual_item):
-        if hasattr(bilingual_item, 'translated') and bilingual_item.translated:
+        if hasattr(bilingual_item, "translated") and bilingual_item.translated:
             return bilingual_item.translated
-        elif hasattr(bilingual_item, 'original') and bilingual_item.original:
+        elif hasattr(bilingual_item, "original") and bilingual_item.original:
             return bilingual_item.original
         return ""
 
     # 辅助函数：获取列表文本
     def _get_list_text(bilingual_list):
         if isinstance(bilingual_list, list):
-            return ", ".join([_get_translated_text(item) for item in bilingual_list if _get_translated_text(item)])
-        elif hasattr(bilingual_list, 'translated'):
+            return ", ".join(
+                [
+                    _get_translated_text(item)
+                    for item in bilingual_list
+                    if _get_translated_text(item)
+                ]
+            )
+        elif hasattr(bilingual_list, "translated"):
             return ", ".join(bilingual_list.translated)
         return ""
 
@@ -112,7 +126,9 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
         if title_text:
             start_time = _format_seconds_to_ass(current_time)
             end_time = _format_seconds_to_ass(current_time + 1.0)
-            intro_events.append(f"Dialogue: 0,{start_time},{end_time},Intro_Large,,0,0,0,,{title_text}")
+            intro_events.append(
+                f"Dialogue: 0,{start_time},{end_time},Intro_Large,,0,0,0,,{title_text}"
+            )
             current_time += 1.0
 
     # 2. 中字居中：演员：【演员名列表】1s
@@ -131,7 +147,9 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
     if actors_text:
         start_time = _format_seconds_to_ass(current_time)
         end_time = _format_seconds_to_ass(current_time + 1.0)
-        intro_events.append(f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,{actors_text}")
+        intro_events.append(
+            f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,{actors_text}"
+        )
         current_time += 1.0
 
     # 3. 中字居中：类别：【类别列表】1s
@@ -140,7 +158,9 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
         if categories_text:
             start_time = _format_seconds_to_ass(current_time)
             end_time = _format_seconds_to_ass(current_time + 1.0)
-            intro_events.append(f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,类别：{categories_text}")
+            intro_events.append(
+                f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,类别：{categories_text}"
+            )
             current_time += 1.0
 
     # 4. 中字居中：制作商【制作商译名】1s
@@ -149,7 +169,9 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
         if studio_text:
             start_time = _format_seconds_to_ass(current_time)
             end_time = _format_seconds_to_ass(current_time + 1.0)
-            intro_events.append(f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,制作商：{studio_text}")
+            intro_events.append(
+                f"Dialogue: 0,{start_time},{end_time},Intro_Normal,,0,0,0,,制作商：{studio_text}"
+            )
             current_time += 1.0
 
     # 5. 大字居中【导演中文名】作品\n发行日期（中字）1s
@@ -173,15 +195,20 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
 
         start_time = _format_seconds_to_ass(current_time)
         end_time = _format_seconds_to_ass(current_time + 1.0)
-        intro_events.append(f"Dialogue: 0,{start_time},{end_time},Intro_Large,,0,0,0,,{combined_text}")
+        intro_events.append(
+            f"Dialogue: 0,{start_time},{end_time},Intro_Large,,0,0,0,,{combined_text}"
+        )
         current_time += 1.0
 
     return intro_events
 
 
-def generate_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: str,
-                                  output_title: str = "Bilingual Subtitle",
-                                  metadata: Optional[Any] = None) -> str:
+def generate_bilingual_ass_subtitle(
+        japanese_srt_path: str,
+        chinese_srt_path: str,
+        output_title: str = "Bilingual Subtitle",
+        metadata: Optional[Any] = None,
+) -> str:
     """
     生成双语ASS字幕内容。
 
@@ -226,8 +253,8 @@ def generate_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: st
             ch_sub = _find_matching_chinese_subtitle(jap_sub, chinese_subs)
 
             # 获取字幕文本
-            jap_text = jap_sub.text.replace('\n', r'\N')
-            ch_text = ch_sub.text.replace('\n', r'\N') if ch_sub else ""
+            jap_text = jap_sub.text.replace("\n", r"\N")
+            ch_text = ch_sub.text.replace("\n", r"\N") if ch_sub else ""
 
             # 格式化时间
             start_time = _format_time_ass(jap_sub.start)
@@ -241,10 +268,14 @@ def generate_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: st
                 bilingual_text = f"{{\\rJPN_Sub}}{jap_text}"
 
             # 添加对话行
-            ass_events.append(f"Dialogue: 0,{start_time},{end_time},CHS_Main,,0,0,0,,{bilingual_text}")
+            ass_events.append(
+                f"Dialogue: 0,{start_time},{end_time},CHS_Main,,0,0,0,,{bilingual_text}"
+            )
 
         # 组合完整的ASS内容
-        final_ass_content = ASS_HEADER_TEMPLATE.format(title=output_title) + "\n".join(ass_events)
+        final_ass_content = ASS_HEADER_TEMPLATE.format(title=output_title) + "\n".join(
+            ass_events
+        )
 
         logger.info(f"成功生成双语ASS字幕，共处理 {len(jap_subs)} 条日语字幕")
         return final_ass_content
@@ -255,8 +286,12 @@ def generate_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: st
         raise ValueError(error_msg) from e
 
 
-def save_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: str,
-                               output_path: str, output_title: str = "Bilingual Subtitle") -> None:
+def save_bilingual_ass_subtitle(
+        japanese_srt_path: str,
+        chinese_srt_path: str,
+        output_path: str,
+        output_title: str = "Bilingual Subtitle",
+) -> None:
     """
     生成并保存双语ASS字幕文件。
 
@@ -268,14 +303,16 @@ def save_bilingual_ass_subtitle(japanese_srt_path: str, chinese_srt_path: str,
     """
     try:
         # 生成ASS内容
-        ass_content = generate_bilingual_ass_subtitle(japanese_srt_path, chinese_srt_path, output_title)
+        ass_content = generate_bilingual_ass_subtitle(
+            japanese_srt_path, chinese_srt_path, output_title
+        )
 
         # 确保输出目录存在
         output_dir = Path(output_path).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 保存文件
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
 
         logger.info(f"双语ASS字幕已保存: {output_path}")

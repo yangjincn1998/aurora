@@ -13,11 +13,13 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class Provider(ABC):
     """翻译服务提供者抽象基类。
 
     定义所有翻译服务提供者必须实现的接口。
     """
+
     @property
     @abstractmethod
     def available(self) -> bool:
@@ -53,7 +55,7 @@ class Provider(ABC):
         pass
 
     @staticmethod
-    def from_config(config: Dict) -> Optional['Provider']:
+    def from_config(config: Dict) -> Optional["Provider"]:
         """从配置字典创建 Provider 实例（工厂方法）。
 
         Args:
@@ -91,7 +93,8 @@ class OpenaiProvider(Provider):
     """
 
     # 享元模式的缓存字典，存储已创建的实例
-    _instance_cache: Dict[str, 'OpenaiProvider'] = {}
+    _instance_cache: Dict[str, "OpenaiProvider"] = {}
+
     def __init__(self, api_key, base_url, model, timeout=500):
         """初始化OpenAI提供者。
 
@@ -106,7 +109,9 @@ class OpenaiProvider(Provider):
         self._model = model
         self.timeout = timeout
         self._available = True
-        self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)
+        self.client = openai.OpenAI(
+            api_key=self.api_key, base_url=self.base_url, timeout=self.timeout
+        )
 
     @property
     def available(self) -> bool:
@@ -117,7 +122,7 @@ class OpenaiProvider(Provider):
         return self._model
 
     @classmethod
-    def from_config(cls, config: Dict) -> Optional['OpenaiProvider']:
+    def from_config(cls, config: Dict) -> Optional["OpenaiProvider"]:
         """从配置字典创建 OpenaiProvider 实例（享元模式）。
 
         Args:
@@ -153,7 +158,8 @@ class OpenaiProvider(Provider):
         # 验证必需参数
         if not all([api_key, base_url, model]):
             logger.warning(
-                f"Missing required parameters: api_key={bool(api_key)}, base_url={bool(base_url)}, model={bool(model)}")
+                f"Missing required parameters: api_key={bool(api_key)}, base_url={bool(base_url)}, model={bool(model)}"
+            )
             return None
 
         # 生成配置的唯一键用于享元模式缓存
@@ -161,18 +167,24 @@ class OpenaiProvider(Provider):
 
         # 检查缓存中是否已存在相同配置的实例
         if cache_key in cls._instance_cache:
-            logger.debug(f"Returning cached OpenaiProvider instance for key: {cache_key}")
+            logger.debug(
+                f"Returning cached OpenaiProvider instance for key: {cache_key}"
+            )
             return cls._instance_cache[cache_key]
 
         # 创建新实例并缓存
         instance = cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
         cls._instance_cache[cache_key] = instance
-        logger.debug(f"Created and cached new OpenaiProvider instance for key: {cache_key}")
+        logger.debug(
+            f"Created and cached new OpenaiProvider instance for key: {cache_key}"
+        )
 
         return instance
 
     @classmethod
-    def _generate_config_key(cls, api_key: str, base_url: str, model: str, timeout: int) -> str:
+    def _generate_config_key(
+            cls, api_key: str, base_url: str, model: str, timeout: int
+    ) -> str:
         """生成配置的唯一键，用于享元模式缓存。
 
         Args:
@@ -222,8 +234,16 @@ class OpenaiProvider(Provider):
         """
         # 熔断检查：如果 Provider 已不可用，快速失败
         if not self.available:
-            logger.warning(f"Provider {self.model} is unavailable due to previous irrecoverable error")
-            return ChatResult(success=False, attempt_count=0, time_taken=0, content=None, error=ErrorType.OTHER)
+            logger.warning(
+                f"Provider {self.model} is unavailable due to previous irrecoverable error"
+            )
+            return ChatResult(
+                success=False,
+                attempt_count=0,
+                time_taken=0,
+                content=None,
+                error=ErrorType.OTHER,
+            )
         start_time = time.time()
         attempt_count = 0
 
@@ -239,8 +259,14 @@ class OpenaiProvider(Provider):
             "safety_settings": [
                 {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
                 {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_NONE",
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_NONE",
+                },
             ],
         }
 
@@ -248,14 +274,16 @@ class OpenaiProvider(Provider):
             attempt_count += 1
             try:
                 mode_str = "streaming" if stream else "non-streaming"
-                logger.info(f"Sending request to API (attempt {attempt + 1}/{max_retries}, {mode_str} mode)...")
+                logger.info(
+                    f"Sending request to API (attempt {attempt + 1}/{max_retries}, {mode_str} mode)..."
+                )
 
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     stream=stream,
                     extra_body=safety_settings,
-                    **kwargs
+                    **kwargs,
                 )
 
                 # 处理流式响应
@@ -281,7 +309,8 @@ class OpenaiProvider(Provider):
 
                         content = "".join(content_parts)
                         logger.info(
-                            f"Streaming response complete: finish_reason={finish_reason}, content_length={len(content)} chars")
+                            f"Streaming response complete: finish_reason={finish_reason}, content_length={len(content)} chars"
+                        )
 
                     except Exception as stream_error:
                         logger.error(f"Error during streaming: {str(stream_error)}")
@@ -291,8 +320,13 @@ class OpenaiProvider(Provider):
                             time.sleep(retry_delay)
                             continue
                         time_taken = int((time.time() - start_time) * 1000)
-                        return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken,
-                                          content=None, error=ErrorType.OTHER)
+                        return ChatResult(
+                            success=False,
+                            attempt_count=attempt_count,
+                            time_taken=time_taken,
+                            content=None,
+                            error=ErrorType.OTHER,
+                        )
 
                 # 处理非流式响应
                 else:
@@ -306,100 +340,185 @@ class OpenaiProvider(Provider):
                             time.sleep(retry_delay)
                             continue
                         time_taken = int((time.time() - start_time) * 1000)  # 毫秒
-                        return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken,
-                                          content=None, error=ErrorType.OTHER)
+                        return ChatResult(
+                            success=False,
+                            attempt_count=attempt_count,
+                            time_taken=time_taken,
+                            content=None,
+                            error=ErrorType.OTHER,
+                        )
 
                     choice = response.choices[0]
                     content = choice.message.content
                     finish_reason = choice.finish_reason
 
                     logger.info(
-                        f"Response: finish_reason={finish_reason}, content_length={len(content) if content else 0} chars")
+                        f"Response: finish_reason={finish_reason}, content_length={len(content) if content else 0} chars"
+                    )
 
                 # 统一处理完成原因（流式和非流式都执行此逻辑）
                 if finish_reason == "stop":
                     time_taken = int((time.time() - start_time) * 1000)  # 毫秒
-                    return ChatResult(success=True, attempt_count=attempt_count, time_taken=time_taken, content=content.strip() if content else "")
+                    return ChatResult(
+                        success=True,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=content.strip() if content else "",
+                    )
                 elif finish_reason == "length":
                     # 长度限制 - 不可重试（业务逻辑问题）
                     logger.warning("Response finished due to length limit")
                     time_taken = int((time.time() - start_time) * 1000)
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.LENGTH_LIMIT)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.LENGTH_LIMIT,
+                    )
                 elif finish_reason == "content_filter":
                     # 内容过滤 - 不可重试（内容违规）
                     logger.warning("Response blocked by content filter")
                     time_taken = int((time.time() - start_time) * 1000)
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.CONTENT_FILTER)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.CONTENT_FILTER,
+                    )
                 else:
                     # 其他 finish_reason 也返回内容
                     logger.warning(f"Unexpected finish_reason: {finish_reason}")
                     time_taken = int((time.time() - start_time) * 1000)
-                    return ChatResult(success=True, attempt_count=attempt_count, time_taken=time_taken, content=content.strip() if content else "")
+                    return ChatResult(
+                        success=True,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=content.strip() if content else "",
+                    )
 
             except native_openai.AuthenticationError as e:
                 # 认证错误 - 不可重试（API密钥无效），触发熔断
                 logger.error(f"OpenAI API authentication error: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.AUTHENTICATION_ERROR)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.AUTHENTICATION_ERROR,
+                )
 
             except native_openai.PermissionDeniedError as e:
                 # 权限错误 - 不可重试（账户权限不足），触发熔断
                 logger.error(f"OpenAI API permission denied: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PERMISSION_DENIED)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.PERMISSION_DENIED,
+                )
 
             except native_openai.NotFoundError as e:
                 # 资源未找到 - 不可重试（模型不存在等），触发熔断
                 logger.error(f"OpenAI API resource not found: {str(e)}")
                 self._available = False  # 触发熔断
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.NOT_FOUND)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.NOT_FOUND,
+                )
 
             except native_openai.UnprocessableEntityError as e:
                 # 请求格式错误 - 不可重试（参数问题），但不触发熔断（可能是特定请求的问题）
                 logger.error(f"OpenAI API unprocessable entity: {str(e)}")
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.UNPROCESSABLE_ENTITY)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.UNPROCESSABLE_ENTITY,
+                )
 
             except native_openai.APITimeoutError as e:
                 # 超时错误 - 可重试
-                logger.error(f"OpenAI API timeout error (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(
+                    f"OpenAI API timeout error (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     continue
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.TIMEOUT)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.TIMEOUT,
+                )
             except native_openai.APIConnectionError as e:
                 # 连接错误 - 可重试
-                logger.error(f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {e.__cause__}")
+                logger.error(
+                    f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {e.__cause__}"
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     continue
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.CONNECTION_ERROR)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.CONNECTION_ERROR,
+                )
 
             except native_openai.RateLimitError as e:
                 # 速率限制 - 检查是否为额度不足
                 error_message = str(e)
                 # 检查是否是额度不足（insufficient_quota）
-                if "insufficient_quota" in error_message.lower() or "quota" in error_message.lower():
+                if (
+                        "insufficient_quota" in error_message.lower()
+                        or "quota" in error_message.lower()
+                ):
                     logger.error(f"OpenAI API insufficient quota: {error_message}")
                     self._available = False  # 触发熔断
                     time_taken = int((time.time() - start_time) * 1000)
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.INSUFFICIENT_QUOTA)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.INSUFFICIENT_QUOTA,
+                    )
 
                 # 普通速率限制 - 可重试
-                logger.error(f"OpenAI API rate limit exceeded (attempt {attempt + 1}/{max_retries}): {error_message}")
+                logger.error(
+                    f"OpenAI API rate limit exceeded (attempt {attempt + 1}/{max_retries}): {error_message}"
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     continue
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.RATE_LIMIT)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.RATE_LIMIT,
+                )
 
             except native_openai.APIStatusError as e:
                 # 根据状态码进行细粒度分类
@@ -408,53 +527,129 @@ class OpenaiProvider(Provider):
 
                 # 应触发熔断的状态码（Provider 级别的不可恢复错误）
                 if status_code == 401:
-                    logger.error(f"OpenAI API authentication error (401): {e.response.text}")
+                    logger.error(
+                        f"OpenAI API authentication error (401): {e.response.text}"
+                    )
                     self._available = False  # 触发熔断
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.AUTHENTICATION_ERROR)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.AUTHENTICATION_ERROR,
+                    )
                 elif status_code == 402:
-                    logger.error(f"OpenAI API payment required (402): {e.response.text}")
+                    logger.error(
+                        f"OpenAI API payment required (402): {e.response.text}"
+                    )
                     self._available = False  # 触发熔断
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.INSUFFICIENT_QUOTA)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.INSUFFICIENT_QUOTA,
+                    )
                 elif status_code == 403:
-                    logger.error(f"OpenAI API permission denied (403): {e.response.text}")
+                    logger.error(
+                        f"OpenAI API permission denied (403): {e.response.text}"
+                    )
                     self._available = False  # 触发熔断
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PERMISSION_DENIED)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.PERMISSION_DENIED,
+                    )
                 elif status_code == 404:
                     logger.error(f"OpenAI API not found (404): {e.response.text}")
                     self._available = False  # 触发熔断
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.NOT_FOUND)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.NOT_FOUND,
+                    )
 
                 # 请求级别错误（不触发熔断，可能通过调整请求解决）
                 elif status_code == 400:
                     logger.error(f"OpenAI API bad request (400): {e.response.text}")
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.UNPROCESSABLE_ENTITY)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.UNPROCESSABLE_ENTITY,
+                    )
                 elif status_code == 413:
-                    logger.error(f"OpenAI API payload too large (413): {e.response.text}")
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.PAYLOAD_TOO_LARGE)
+                    logger.error(
+                        f"OpenAI API payload too large (413): {e.response.text}"
+                    )
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.PAYLOAD_TOO_LARGE,
+                    )
                 elif status_code == 422:
-                    logger.error(f"OpenAI API unprocessable entity (422): {e.response.text}")
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.UNPROCESSABLE_ENTITY)
+                    logger.error(
+                        f"OpenAI API unprocessable entity (422): {e.response.text}"
+                    )
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.UNPROCESSABLE_ENTITY,
+                    )
 
                 # 其他状态码 - 可重试（如 5xx, 429, 408 等）
                 else:
-                    logger.error(f"OpenAI API status error (attempt {attempt + 1}/{max_retries}): {status_code} - {e.response.text}")
+                    logger.error(
+                        f"OpenAI API status error (attempt {attempt + 1}/{max_retries}): {status_code} - {e.response.text}"
+                    )
                     if attempt < max_retries - 1:
-                        logger.info(f"Status code {status_code} is retryable. Retrying in {retry_delay} seconds...")
+                        logger.info(
+                            f"Status code {status_code} is retryable. Retrying in {retry_delay} seconds..."
+                        )
                         time.sleep(retry_delay)
                         continue
-                    return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.OTHER)
+                    return ChatResult(
+                        success=False,
+                        attempt_count=attempt_count,
+                        time_taken=time_taken,
+                        content=None,
+                        error=ErrorType.OTHER,
+                    )
 
             except Exception as e:
                 # 其他未知错误 - 默认可重试（黑名单模式）
-                logger.error(f"Unexpected error during OpenAI API call (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(
+                    f"Unexpected error during OpenAI API call (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     continue
                 time_taken = int((time.time() - start_time) * 1000)
-                return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.OTHER)
+                return ChatResult(
+                    success=False,
+                    attempt_count=attempt_count,
+                    time_taken=time_taken,
+                    content=None,
+                    error=ErrorType.OTHER,
+                )
 
         # 理论上不会到这里，但作为保险
         logger.error("All retry attempts exhausted")
         time_taken = int((time.time() - start_time) * 1000)
-        return ChatResult(success=False, attempt_count=attempt_count, time_taken=time_taken, content=None, error=ErrorType.OTHER)
+        return ChatResult(
+            success=False,
+            attempt_count=attempt_count,
+            time_taken=time_taken,
+            content=None,
+            error=ErrorType.OTHER,
+        )

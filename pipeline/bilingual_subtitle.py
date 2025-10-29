@@ -1,23 +1,25 @@
 from pathlib import Path
 from typing import List
 
+from domain.movie import Movie, Video
 from domain.subtitle import BilingualList, BilingualText
-from .base import VideoPipelineStage
-from .context import PipelineContext
-from domain.movie import Movie, Video, Metadata
 from models.enums import StageStatus, PiplinePhase
-from utils.logger import get_logger
+from pipeline.base import VideoPipelineStage
+from pipeline.context import PipelineContext
 from utils.bilingual_subtitle_generator import generate_bilingual_ass_subtitle
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _transform_to_text(item: BilingualList|List[BilingualText]|None) -> str|None:
+def _transform_to_text(item: BilingualList | List[BilingualText] | None) -> str | None:
     """将双语文本对象转换为字符串。"""
     if isinstance(item, list):
-        item_list = ', '.join([i.translated if i.translated else i.original for i in item])
+        item_list = ", ".join(
+            [i.translated if i.translated else i.original for i in item]
+        )
     elif isinstance(item, BilingualList):
-        item_list = ', '.join(item.translated)
+        item_list = ", ".join(item.translated)
     else:
         item_list = None
     return item_list
@@ -48,7 +50,10 @@ class BilingualSubtitleStage(VideoPipelineStage):
         Returns:
             bool: 如果双语字幕阶段未成功完成则返回True。
         """
-        return video.status.get(PiplinePhase.BILINGUAL_SUBTITLE, StageStatus.PENDING) != StageStatus.SUCCESS
+        return (
+                video.status.get(PiplinePhase.BILINGUAL_SUBTITLE, StageStatus.PENDING)
+                != StageStatus.SUCCESS
+        )
 
     def execute(self, movie: Movie, video: Video, context: PipelineContext):
         """执行双语字幕生成处理。
@@ -77,7 +82,11 @@ class BilingualSubtitleStage(VideoPipelineStage):
 
             # 生成输出标题
             metadata = movie.metadata
-            title = metadata.title.translated if metadata.title.translated else metadata.title.original
+            title = (
+                metadata.title.translated
+                if metadata.title.translated
+                else metadata.title.original
+            )
             output_title = f"{movie.code} - {title}"
 
             # 生成双语ASS字幕内容
@@ -85,7 +94,7 @@ class BilingualSubtitleStage(VideoPipelineStage):
                 japanese_srt_path=jap_srt_path,
                 chinese_srt_path=sch_srt_path,
                 output_title=output_title,
-                metadata=movie.metadata
+                metadata=movie.metadata,
             )
 
             # 保存双语字幕文件
@@ -105,44 +114,9 @@ class BilingualSubtitleStage(VideoPipelineStage):
 
         except Exception as e:
             error_message = f"双语字幕生成失败: {e}"
-            logger.error(f"为 {video.filename} 生成双语字幕时发生错误: {error_message}", exc_info=True)
+            logger.error(
+                f"为 {video.filename} 生成双语字幕时发生错误: {error_message}",
+                exc_info=True,
+            )
             video.status[PiplinePhase.BILINGUAL_SUBTITLE] = StageStatus.FAILED
             raise
-
-
-if __name__ == "__main__":
-    from datetime import datetime
-    from services.pipeline.manifest import SQLiteManifest
-
-    # 测试代码
-    manifest = SQLiteManifest()
-    mock_movie = manifest.get_movie("DDT-185")
-    mock_video = Video(
-        sha256="dummy",
-        filename="example_video",
-        suffix="mp4",
-        absolute_path="path/to/example",
-        status={
-            PiplinePhase.CORRECT_SUBTITLE: StageStatus.SUCCESS,
-            PiplinePhase.TRANSLATE_SUBTITLE: StageStatus.SUCCESS,
-            PiplinePhase.BILINGUAL_SUBTITLE: StageStatus.PENDING
-        },
-        by_products={
-            PiplinePhase.CORRECT_SUBTITLE: "output/DDT-185/example_video.corrected.srt",
-            PiplinePhase.TRANSLATE_SUBTITLE: "output/DDT-185/example_video.srt"
-        }
-    )
-
-    context = PipelineContext(
-        movie_code="DDT-185",
-        manifest=manifest,
-        translator=None,
-        langfuse_session_id="test-session:" + datetime.now().strftime("%Y%m%d"),
-        output_dir="output"
-    )
-
-    bilingual_stage = BilingualSubtitleStage()
-    if bilingual_stage.should_execute(mock_video, context):
-        bilingual_stage.execute(mock_movie, mock_video, context)
-    else:
-        logger.info("双语字幕阶段无需执行")

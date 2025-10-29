@@ -19,6 +19,7 @@ class TranslateContext:
         actors (Optional[List[Dict]]): 相关演员列表。
         actress (Optional[List[Dict]]): 相关女优列表。
     """
+
     task_type: TaskType
     metadata: Optional[dict] = None
     terms: Optional[List[Term]] = None

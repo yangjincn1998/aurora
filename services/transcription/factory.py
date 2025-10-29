@@ -1,6 +1,6 @@
-import yaml
 from pathlib import Path
-from typing import Dict, Any
+
+import yaml
 
 from services.transcription.transcriber import Transcriber, WhisperTranscriber
 from utils.logger import get_logger
@@ -34,7 +34,7 @@ class TranscriberFactory:
                 compute_type=compute_type,
                 language=language,
                 beam_size=beam_size,
-                vad_filter=vad_filter
+                vad_filter=vad_filter,
             )
         else:
             raise ValueError(f"Unknown transcriber type: {type}")
@@ -50,7 +50,7 @@ class TranscriberFactory:
         if not Path(yaml_path).exists():
             raise FileNotFoundError(f"YAML config file not found: {yaml_path}")
 
-        with open(yaml_path, 'r', encoding='utf-8') as f:
+        with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         transcriber_config = config.get("transcriber", {})

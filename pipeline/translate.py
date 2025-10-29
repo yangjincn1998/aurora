@@ -1,17 +1,13 @@
 import os
-from datetime import datetime
 from pathlib import Path
 
 from langfuse import get_client, observe
 
+from domain.movie import Video, Movie
+from models.enums import StageStatus, PiplinePhase
+from models.results import ProcessResult
 from pipeline.base import VideoPipelineStage
 from pipeline.context import PipelineContext
-from domain.movie import Video, Movie
-from models.enums import StageStatus, PiplinePhase, TaskType
-from models.results import ProcessResult
-from services.pipeline.manifest import SQLiteManifest
-from services.translation.orchestrator import TranslateOrchestrator
-from services.translation.provider import OpenaiProvider
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,10 +36,15 @@ class TranslateStage(VideoPipelineStage):
         Returns:
             bool: 如果翻译阶段未成功完成则返回True。
         """
-        return video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING) != StageStatus.SUCCESS
+        return (
+                video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING)
+                != StageStatus.SUCCESS
+        )
 
     @observe
-    def execute(self, movie: Movie, video: Video, context: PipelineContext, stream=False):
+    def execute(
+            self, movie: Movie, video: Video, context: PipelineContext, stream=False
+    ):
         """执行字幕翻译处理。
 
         读取校正后的字幕文件，使用翻译服务进行翻译，并将结果保存到输出文件。
@@ -56,17 +57,23 @@ class TranslateStage(VideoPipelineStage):
 
         """
         langfuse = get_client()
-        langfuse.update_current_trace(session_id=context.langfuse_session_id,
-                                      tags=[context.movie_code, "translation", "subtitle"])
+        langfuse.update_current_trace(
+            session_id=context.langfuse_session_id,
+            tags=[context.movie_code, "translation", "subtitle"],
+        )
 
         metadata = movie.metadata.to_serializable_dict()
         text_path = video.by_products[PiplinePhase.CORRECT_SUBTITLE]
         text = Path(text_path).read_text(encoding="utf-8")
-        result: ProcessResult = context.translator.translate_subtitle(text, metadata, movie.terms, stream)
+        result: ProcessResult = context.translator.translate_subtitle(
+            text, metadata, movie.terms, stream
+        )
         if result.success:
             processed_text = result.content
             file_name = video.filename
-            out_path = os.path.join(context.output_dir, movie.code, file_name + ".translated.srt")
+            out_path = os.path.join(
+                context.output_dir, movie.code, file_name + ".translated.srt"
+            )
             logger.info(f"The translated srt will be wrote in {out_path}")
             video.by_products[PiplinePhase.TRANSLATE_SUBTITLE] = out_path
             Path(out_path).touch(exist_ok=True)
@@ -77,35 +84,3 @@ class TranslateStage(VideoPipelineStage):
             logger.warning("Failed to translation srt")
             video.status[PiplinePhase.TRANSLATE_SUBTITLE] = StageStatus.FAILED
         return
-
-
-if __name__ == "__main__":
-    import dotenv
-
-    dotenv.load_dotenv()
-
-    provider = OpenaiProvider(os.getenv("OPENROUTER_API_KEY"), os.getenv("OPENROUTER_BASE_URL"),
-                              "deepseek/deepseek-chat-v3.1")
-    translator = TranslateOrchestrator(provider_map={
-        TaskType.TRANSLATE_SUBTITLE: [provider]
-    })
-
-    context = PipelineContext(
-        movie_code="DDT-185",
-        manifest=SQLiteManifest(),
-        translator=translator,
-        langfuse_session_id="test-session:" + datetime.now().strftime("%Y%m%d"),
-    )
-    manifest = SQLiteManifest()
-    mock_movie = manifest.get_movie("DDT-185")
-    mock_video = Video(
-        sha256="dummy",
-        filename="example_video",
-        suffix="mp4",
-        absolute_path="path/to/example",
-        status={PiplinePhase.TRANSLATE_SUBTITLE: StageStatus.PENDING},
-        by_products={PiplinePhase.CORRECT_SUBTITLE: "output/DDT-185/example_video.corrected.srt"}
-    )
-    translate_stage = TranslateStage()
-    if translate_stage.should_execute(mock_video, context):
-        translate_stage.execute(mock_movie, mock_video, context)

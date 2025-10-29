@@ -14,7 +14,14 @@ class SubtitleBlock:
         is_processed (bool): 是否已处理。
         next (Optional[SubtitleBlock]): 下一个节点。
     """
-    def __init__(self, origin: str, processed: Optional[ChatResult] = None, is_processed: bool = False, next_node=None):
+
+    def __init__(
+            self,
+            origin: str,
+            processed: Optional[ChatResult] = None,
+            is_processed: bool = False,
+            next_node=None,
+    ):
         """初始化字幕块链表节点。
 
         Args:
@@ -42,7 +49,9 @@ class SubtitleBlock:
         blocks = self.origin.strip().split("\n\n")
         return len([b for b in blocks if b.strip()])
 
-    def split_into_three(self) -> tuple['SubtitleBlock', 'SubtitleBlock', 'SubtitleBlock']:
+    def split_into_three(
+            self,
+    ) -> tuple["SubtitleBlock", "SubtitleBlock", "SubtitleBlock"]:
         """将当前节点的字幕文本三等分，返回三个新节点。
 
         将字幕块按台词数量三等分，创建三个新的链表节点并连接。
@@ -59,8 +68,8 @@ class SubtitleBlock:
 
         # 三等分
         part1 = blocks[:third]
-        part2 = blocks[third:2*third]
-        part3 = blocks[2*third:]
+        part2 = blocks[third: 2 * third]
+        part3 = blocks[2 * third:]
 
         # 创建三个新节点
         node1 = SubtitleBlock(origin="\n\n".join(part1) + "\n\n", is_processed=False)
