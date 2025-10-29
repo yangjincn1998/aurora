@@ -1,3 +1,4 @@
+import hashlib
 import os
 import time
 from abc import ABC, abstractmethod
@@ -10,7 +11,7 @@ from models.enums import ErrorType
 from models.results import ChatResult
 from utils.logger import get_logger
 
-logger = get_logger("av_translator")
+logger = get_logger(__name__)
 
 class Provider(ABC):
     """翻译服务提供者抽象基类。
@@ -88,6 +89,9 @@ class OpenaiProvider(Provider):
         _available (bool): 提供者是否可用（熔断状态）。
         client (openai.OpenAI): OpenAI客户端实例。
     """
+
+    # 享元模式的缓存字典，存储已创建的实例
+    _instance_cache: Dict[str, 'OpenaiProvider'] = {}
     def __init__(self, api_key, base_url, model, timeout=500):
         """初始化OpenAI提供者。
 
@@ -114,7 +118,7 @@ class OpenaiProvider(Provider):
 
     @classmethod
     def from_config(cls, config: Dict) -> Optional['OpenaiProvider']:
-        """从配置字典创建 OpenaiProvider 实例。
+        """从配置字典创建 OpenaiProvider 实例（享元模式）。
 
         Args:
             config (Dict): Provider 配置字典，包含以下字段：
@@ -152,7 +156,55 @@ class OpenaiProvider(Provider):
                 f"Missing required parameters: api_key={bool(api_key)}, base_url={bool(base_url)}, model={bool(model)}")
             return None
 
-        return cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
+        # 生成配置的唯一键用于享元模式缓存
+        cache_key = cls._generate_config_key(api_key, base_url, model, timeout)
+
+        # 检查缓存中是否已存在相同配置的实例
+        if cache_key in cls._instance_cache:
+            logger.debug(f"Returning cached OpenaiProvider instance for key: {cache_key}")
+            return cls._instance_cache[cache_key]
+
+        # 创建新实例并缓存
+        instance = cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
+        cls._instance_cache[cache_key] = instance
+        logger.debug(f"Created and cached new OpenaiProvider instance for key: {cache_key}")
+
+        return instance
+
+    @classmethod
+    def _generate_config_key(cls, api_key: str, base_url: str, model: str, timeout: int) -> str:
+        """生成配置的唯一键，用于享元模式缓存。
+
+        Args:
+            api_key (str): API密钥
+            base_url (str): API基础URL
+            model (str): 模型名称
+            timeout (int): 超时时间
+
+        Returns:
+            str: 配置的唯一哈希键
+        """
+        # 将所有配置参数组合成字符串并生成MD5哈希
+        config_str = f"{api_key}|{base_url}|{model}|{timeout}"
+        return hashlib.md5(config_str.encode()).hexdigest()
+
+    @classmethod
+    def clear_cache(cls):
+        """清空享元模式缓存。
+
+        主要用于测试或需要强制重新创建实例的场景。
+        """
+        cls._instance_cache.clear()
+        logger.debug("OpenaiProvider instance cache cleared")
+
+    @classmethod
+    def get_cache_size(cls) -> int:
+        """获取当前缓存的大小。
+
+        Returns:
+            int: 缓存中的实例数量
+        """
+        return len(cls._instance_cache)
 
     @observe
     def chat(self, messages, stream: bool = False, **kwargs) -> ChatResult:

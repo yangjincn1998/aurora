@@ -1,15 +1,13 @@
-import json
 import time
-import uuid
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Optional, Tuple
 
 from langfuse import observe
 
 from data_structures.subtitle_node import SubtitleBlock
 from models.context import TranslateContext
 from models.enums import TaskType
-from models.results import ProcessResult, ChatResult
+from models.results import ProcessResult
 from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PROMPT, CATEGORY_SYSTEM_PROMPT, \
     director_examples, actor_examples, category_examples, studio_examples, synopsis_examples, title_examples, \
     CORRECT_SUBTITLE_SYSTEM_PROMPT, CORRECT_SUBTITLE_USER_QUERY, TRANSLATE_SUBTITLE_PROMPT, \
@@ -18,7 +16,10 @@ from services.translation.prompts import DIRECTOR_SYSTEM_PROMPT, ACTOR_SYSTEM_PR
     TITLE_USER_QUERY
 from services.translation.provider import Provider
 from utils.logger import get_logger
-from utils.prompt_utils import recursive_replace
+from utils.prompt_utils import build_message_with_uuid, build_message_with_replacements, build_subtitle_messages
+from utils.subtitle_utils import update_translate_context, adaptive_slice_subtitle, \
+    aggregate_successful_results
+
 logger = get_logger("av_translator")
 
 class TranslateStrategy(ABC):
@@ -26,9 +27,16 @@ class TranslateStrategy(ABC):
     翻译策略的高层接口
     所有翻译策略都需要实现 process 方法
     process 方法必须包含 provider 和 text 参数，其他参数可以不同
+    Attribute:
+        stream(bool): 是否启用流式输入。
+        temperature(float): 模型调用的温度。
     """
+    def __init__(self, stream:bool=False, temperature:float=1.0):
+        self.stream = stream
+        self.temperature = temperature
+
     @abstractmethod
-    def process(self, provider: Provider, context: TranslateContext, stream) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """子类需要实现此方法，但签名可以不同"""
         pass
 
@@ -62,8 +70,9 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         system_prompts (dict): 各任务类型对应的系统提示词。
         examples (dict): 各任务类型对应的示例。
     """
-    def __init__(self):
+    def __init__(self, stream, temperature):
         """初始化元数据翻译策略。"""
+        super().__init__(stream, temperature)
         self.system_prompts = {
             TaskType.METADATA_DIRECTOR: DIRECTOR_SYSTEM_PROMPT,
             TaskType.METADATA_ACTOR: ACTOR_SYSTEM_PROMPT,
@@ -89,36 +98,16 @@ class MetaDataTranslateStrategy(TranslateStrategy):
         raise NotImplementedError()
 
 
-class BuildMetaDataTranslateStrategy(MetaDataTranslateStrategy):
-    """元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
-    @staticmethod
-    def _build_message_with_uuid(system_prompt, examples, query):
-        """构建带有UUID前缀的消息，用于元数据翻译。
-
-        Args:
-            system_prompt (str): 系统提示词。
-            examples (dict): 示例字典。
-            query (str): 用户查询。
-
-        Returns:
-            list: 构建好的消息列表。
-        """
-        messages = []
-        messages.append({"role": "system", "content": system_prompt})
-        for question, answer in examples.items():
-            messages.append({"role": "user", "content": question})
-            messages.append({"role": "assistant", "content": answer})
-        messages.append({"role": "user", "content": query})
-        return messages
-
+class SimpleMetaDataStrategy(MetaDataTranslateStrategy):
+    """带UUID前缀的元数据翻译策略。不需要其他额外信息，用于片商、演员、导演和类别等简单元数据翻译。"""
+    
     @observe
-    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理元数据翻译。
 
         Args:
             provider (Provider): 服务提供者。
             context (TranslateContext): 处理上下文。
-            stream (bool): 是否使用流式调用，默认False。
 
         Returns:
             ProcessResult: 翻译结果。
@@ -131,8 +120,8 @@ class BuildMetaDataTranslateStrategy(MetaDataTranslateStrategy):
         # 调用 Provider
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, {})
-        messages = self._build_message_with_uuid(system_prompt, examples, context.text_to_process)
-        chat_result = provider.chat(messages, stream=stream)
+        messages = build_message_with_uuid(system_prompt, examples, context.text_to_process)
+        chat_result = provider.chat(messages, stream=self.stream, temperature=self.temperature)
 
         # 将 ChatResult 转换为 ProcessResult
         return ProcessResult(
@@ -144,42 +133,17 @@ class BuildMetaDataTranslateStrategy(MetaDataTranslateStrategy):
         )
 
 
-class ReplaceWithMetaDataTranslateStrategy(MetaDataTranslateStrategy):
+class ContextualMetaDataStrategy(MetaDataTranslateStrategy):
     """使用上下文替换的元数据翻译策略。适用于需要上下文信息的元数据翻译，如简介、标题等。"""
 
-    def _build_message_with_replacements(self, system_prompt, examples, query, context: TranslateContext):
-        """构建带有上下文替换的消息，用于元数据翻译。
-
-        Args:
-            system_prompt (str): 系统提示词。
-            examples (list[tuple]): 示例字典或列表。
-            query(dict): 用户查询模板。
-            context (TranslateContext): 处理上下文。
-
-        Returns:
-            list: 构建好的消息列表。
-        """
-        messages = [{"role": "system", "content": system_prompt}]
-        for question, answer in examples:
-            messages.append({"role": "user", "content": str(question)})
-            messages.append({"role": "assistant", "content": answer})
-        replacements = {
-            "actors_value": context.actors,
-            "actresses_value": context.actress,
-            "synopsis_value": context.text_to_process,
-            "title_value": context.text_to_process,
-        }
-        populated_query = recursive_replace(query, replacements)
-        messages.append({"role": "user", "content": json.dumps(populated_query)})
-        return messages
-
+    
     @observe
-    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, [])
         query = self.query_templates.get(context.task_type, {})
-        messages = self._build_message_with_replacements(system_prompt, examples, query, context)
-        chat_result = provider.chat(messages, stream=stream, temperature=0.7)
+        messages = build_message_with_replacements(system_prompt, examples, query, context)
+        chat_result = provider.chat(messages, stream=self.stream, temperature=self.temperature)
         return ProcessResult(
             task_type=context.task_type,
             attempt_count=chat_result.attempt_count,
@@ -197,8 +161,9 @@ class BaseSubtitleStrategy(TranslateStrategy):
         system_prompts (dict): 各任务类型对应的系统提示词。
         user_queries (dict): 各任务类型对应的用户查询模板。
     """
-    def __init__(self):
+    def __init__(self, stream:bool=False, temperature:float=1.0):
         """初始化基础字幕处理策略。"""
+        super().__init__(stream, temperature)
         self.system_prompts = {
             TaskType.CORRECT_SUBTITLE: CORRECT_SUBTITLE_SYSTEM_PROMPT,
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_PROMPT
@@ -208,32 +173,7 @@ class BaseSubtitleStrategy(TranslateStrategy):
             TaskType.TRANSLATE_SUBTITLE: TRANSLATE_SUBTITLE_USER_QUERY
         }
 
-    @staticmethod
-    def _build_messages(system_prompt, user_query, context: TranslateContext, node_text: str):
-        """构建字幕处理消息。
-
-        Args:
-            system_prompt (str): 系统提示词。
-            user_query (dict): 用户查询模板。
-            context (TranslateContext): 处理上下文。
-            node_text (str): 待处理的字幕文本。
-
-        Returns:
-            list: 构建好的消息列表。
-        """
-        replacements = {
-            "metadata_value": context.metadata,
-            "text_value": node_text,
-            "terms_value": context.terms,
-        }
-        populated_query_dict = recursive_replace(user_query, replacements)
-        user_content_json = json.dumps(populated_query_dict, ensure_ascii=False, indent=2)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content_json}
-        ]
-        return messages
-
+    
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕（需由子类实现）。
 
@@ -252,132 +192,6 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
     维护字幕块链表，当节点失败时如果台词数>=10则三等分后重试。
     子类只需实现_create_initial_linked_list方法来创建初始链表。
     """
-
-    @staticmethod
-    def _renumber_subtitles(srt_content: str) -> str:
-        """重新排序SRT字幕的序号。
-
-        Args:
-            srt_content (str): 原始SRT字幕内容。
-
-        Returns:
-            str: 重新编号后的SRT字幕内容。
-        """
-        if not srt_content:
-            return srt_content
-
-        blocks = srt_content.strip().split("\n\n")
-        renumbered_blocks = []
-
-        for idx, block in enumerate(blocks, start=1):
-            if not block.strip():
-                continue
-            lines = block.split("\n")
-            if len(lines) >= 2:
-                # 替换第一行的序号
-                lines[0] = str(idx)
-                renumbered_blocks.append("\n".join(lines))
-
-        return "\n\n".join(renumbered_blocks)
-
-    @staticmethod
-    def _update_context(context: TranslateContext, chat_result: ChatResult) -> TranslateContext:
-        """根据最新的ChatResult更新TranslateContext。
-
-        Args:
-            context (TranslateContext): 当前的处理上下文。
-            chat_result (ChatResult): 最新的聊天结果。
-
-        Returns:
-            TranslateContext: 更新后的处理上下文。
-        """
-        if not chat_result.success or not chat_result.content:
-            return context
-
-        try:
-            result_json = json.loads(chat_result.content)
-            result_terms = result_json.get("terms", [])
-            if not result_terms:
-                return context
-            # 以术语中的 japanese 作为主键
-            history_primary_keys = {term['japanese'] for term in context.terms} if context.terms else set()
-            for term in result_terms:
-                if term['japanese'] not in history_primary_keys:
-                    context.terms.append(term)
-                    history_primary_keys.add(term['japanese'])
-                    term_ja, term_ch = term['japanese'], term.get('recommended_chinese', '')
-                    logger.info(f"Updated term: {term_ja} -> {term_ch}")
-            return TranslateContext(
-                task_type=context.task_type,
-                metadata=context.metadata,
-                terms=context.terms,
-                text_to_process=context.text_to_process
-            )
-        except json.JSONDecodeError:
-            return context
-
-    def _aggregate_linked_list(self, head: SubtitleBlock, task_type: TaskType,
-                               total_attempt_count: int, total_time_taken: int) -> ProcessResult:
-        """聚合链表中所有成功节点的处理结果。
-
-        合并所有content和differences，重新排序字幕序号。
-
-        Args:
-            head (SubtitleBlock): 链表头节点。
-            task_type (TaskType): 任务类型。
-            total_attempt_count (int): 累计调用次数。
-            total_time_taken (int): 累计总耗时（毫秒）。
-
-        Returns:
-            ProcessResult: 聚合后的处理结果。
-        """
-        all_content_parts = []
-        all_differences = []
-        all_terms = []
-
-        # 遍历链表，只收集成功节点的内容
-        current = head
-        while current is not None:
-            if current.is_processed and current.processed and current.processed.success:
-                # 解析 JSON 内容
-                try:
-                    result_json = json.loads(current.processed.content.replace("```json\n", "").replace("```", "").strip())
-
-                    # 收集 content
-                    if "content" in result_json:
-                        all_content_parts.append(result_json["content"])
-
-                    # 收集 differences
-                    if "differences" in result_json and result_json["differences"]:
-                        all_differences.extend(result_json["differences"])
-
-                    # 收集 terms
-                    if "terms" in result_json and result_json["terms"]:
-                        all_terms.extend(result_json["terms"])
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse JSON from processed content: {e}")
-
-            current = current.next
-
-        # 合并所有 content
-        if all_content_parts:
-            merged_content = "\n\n".join(all_content_parts)
-            # 重新排序字幕序号
-            renumbered_content = self._renumber_subtitles(merged_content)
-        else:
-            renumbered_content = None
-
-        return ProcessResult(
-            task_type=task_type,
-            attempt_count=total_attempt_count,
-            time_taken=total_time_taken,
-            content=renumbered_content,
-            terms=all_terms if all_terms else None,
-            differences=all_differences if all_differences else None,
-            success=renumbered_content is not None
-        )
-
     def _create_initial_linked_list(self, text: str) -> SubtitleBlock:
         """创建初始链表。
 
@@ -395,7 +209,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         raise NotImplementedError("Subclass must implement _create_initial_linked_list")
 
     @observe
-    def process(self, provider: Provider, context: TranslateContext, stream: bool = False) -> ProcessResult:
+    def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         """处理字幕，采用尽力而为策略。
 
         创建初始链表，如果失败且台词数>=10则三等分后重试，最后聚合所有结果。
@@ -403,7 +217,6 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         Args:
             provider (Provider): 服务提供者。
             context (TranslateContext): 处理上下文。
-            stream (bool): 是否使用流式调用，默认False。
 
         Returns:
             ProcessResult: 处理结果。
@@ -425,33 +238,44 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
 
         # 处理链表
         head, total_attempt_count, total_api_time = self._process_linked_list_with_best_effort(
-            context.task_type, provider, context, head, total_attempt_count, total_api_time, stream
+            context.task_type, provider, context, head, total_attempt_count, total_api_time, self.stream
         )
 
         # Strategy 层总耗时
         strategy_time_taken = int((time.time() - start_time) * 1000)  # 毫秒
 
         # 聚合结果
-        return self._aggregate_linked_list(head, context.task_type, total_attempt_count, strategy_time_taken)
+        return aggregate_successful_results(head, context.task_type, total_attempt_count, strategy_time_taken)
 
-    def _process_linked_list_with_best_effort(self, task_type, provider, context, head: SubtitleBlock,
-                                              total_attempt_count: int, total_api_time: int, stream: bool = False):
+    def _process_linked_list_with_best_effort(self,
+                                              task_type,
+                                              provider,
+                                              context,
+                                              head: SubtitleBlock,
+                                              total_attempt_count: int,
+                                              total_api_time: int,
+                                              stream: bool = False,
+                                              temperature: float = 1.0,
+                                              ) -> Tuple[SubtitleBlock, int, int]:
         """尽力而为地处理链表。
 
         逐个处理节点，失败时如果台词数>=10则三等分节点并插入链表。
         在处理过程中动态累积术语库，使后续节点能够利用之前识别的术语。
 
         Args:
-            task_type (TaskType): 任务类型。
-            provider (Provider): 服务提供者。
-            context (TranslateContext): 元数据。
-            head (SubtitleBlock): 链表头节点。
-            total_attempt_count (int): 累计调用次数。
-            total_api_time (int): 累计API时间（毫秒）。
-            stream (bool): 是否使用流式调用，默认False。
-
+            task_type: 任务类型。
+            provider: 服务提供者。
+            context: 元数据。
+            head: 链表头节点。
+            total_attempt_count: 累计调用次数。
+            total_api_time: 累计API时间（毫秒）。
+            stream: 是否使用流式调用，默认False。
+            temperature: 调用模型的温度，默认 1.0。
         Returns:
-            tuple: (更新后的头节点, 总调用次数, 总API时间)。
+            A tuple containing:
+                SubtitleBlock: 更新后的头结点.
+                int: 总 api 调用次数.
+                int: 总 api 时间(ms).
         """
         prev = None
         current = head
@@ -467,10 +291,10 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             # 处理当前节点
             system_prompt = self.system_prompts[task_type]
             user_query = self.user_queries[task_type]
-            messages = self._build_messages(system_prompt, user_query, context, current.origin)
+            messages = build_subtitle_messages(system_prompt, user_query, context, current.origin)
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
-            result = provider.chat(messages, stream=stream, timeout=500, response_format={"type": "json_object"})
+            result = provider.chat(messages, stream=stream, temperature=temperature, timeout=500, response_format={"type": "json_object"})
 
             # 累加调用次数和API时间（无论成功失败）
             total_attempt_count += result.attempt_count
@@ -480,7 +304,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 # 成功，标记为已处理
                 current.processed = result
                 current.is_processed = True
-                context = self._update_context(context, result)
+                context = update_translate_context(context, result)
                 logger.info(f"Node processed successfully")
                 prev = current
                 current = current.next
@@ -533,54 +357,16 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         slice_size (int): 每个分片的字幕条目数量。
     """
 
-    def __init__(self, slice_size=200):
+    def __init__(self, stream, temperature, slice_size=200):
         """初始化分片策略。
 
         Args:
             slice_size (int): 每个分片的字幕条目数量，默认200。
         """
-        super().__init__()
+        super().__init__(stream, temperature)
         self.slice_size = slice_size
 
-    def _adaptive_slice_subtitle(self, srt_content: str) -> List[str]:
-        """自适应分片字幕内容。
-
-        根据字幕总数和slice_size动态计算分片方案，确保分片均匀。
-
-        Args:
-            srt_content (str): 原始字幕内容。
-
-        Returns:
-            List[str]: 分片后的字幕文本列表。
-        """
-        if not srt_content:
-            return []
-        all_blocks = [b for b in srt_content.strip().split("\n\n") if b.strip()]
-        total_blocks = len(all_blocks)
-
-        if total_blocks == 0:
-            return []
-        if total_blocks <= self.slice_size:
-            return [srt_content]
-
-        num_slices = (total_blocks + self.slice_size - 1) // self.slice_size
-        base_size = total_blocks // num_slices
-        remainder = total_blocks % num_slices
-        logger.info(f"Adaptive slice: total lines number: {total_blocks}, slice size: {self.slice_size} -> "
-                   f"plan to slice to {num_slices} slices, base size: {base_size}, remainder: {remainder}")
-        final_slices = []
-        current_index = 0
-        for i in range(num_slices):
-            slice_size = base_size + 1 if i < remainder else base_size
-            start_index = current_index
-            end_index = current_index + slice_size
-
-            slice_blocks = all_blocks[start_index:end_index]
-            final_slices.append("\n\n".join(slice_blocks))
-
-            current_index = end_index
-        return final_slices
-
+    
     def _create_initial_linked_list(self, text: str) -> Optional[SubtitleBlock]:
         """创建多节点链表（预分片）。
 
@@ -590,7 +376,7 @@ class SliceSubtitleStrategy(BestEffortSubtitleStrategy):
         Returns:
             Optional[SubtitleBlock]: 分片后的链表头节点，如果文本为空则返回None。
         """
-        blocks = self._adaptive_slice_subtitle(text)
+        blocks = adaptive_slice_subtitle(text, self.slice_size)
 
         if not blocks:
             return None

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from dataclasses import dataclass
 
 from langfuse import observe
 from yaml import safe_load
@@ -9,7 +10,16 @@ from models.enums import TaskType
 from models.results import ProcessResult
 from services.translation.provider import Provider
 from services.translation.strategies import TranslateStrategy, SliceSubtitleStrategy, \
-    BuildMetaDataTranslateStrategy, ReplaceWithMetaDataTranslateStrategy
+    SimpleMetaDataStrategy, ContextualMetaDataStrategy, NoSliceSubtitleStrategy
+
+
+@dataclass
+class TaskConfig:
+    """任务配置数据类"""
+    providers: List[Provider]
+    stream: Optional[bool] = None  # 如果为 None，则使用全局 streaming_models 判断
+    temperature: Optional[float] = 1.0 # 如果为 None, 则不传参
+    strategy: Optional[Dict] = None  # 策略配置（如 slice、size 等）
 
 
 class TranslateOrchestrator:
@@ -18,8 +28,9 @@ class TranslateOrchestrator:
     作为外观，为上层服务提供简介接口
     内部通过适配器方法，使用统一的上下文对象处理服务
     """
-    def __init__(self, provider_map: Dict[TaskType, List[Provider]]):
-        self.provider_map = provider_map
+    def __init__(self, task_configs: Dict[TaskType, TaskConfig], streaming_models: List[str] = None):
+        self.task_configs = task_configs
+        self.streaming_models = streaming_models or []
 
     @classmethod
     def from_config_yaml(cls, file_path: str):
@@ -45,46 +56,58 @@ class TranslateOrchestrator:
         Returns:
             TranslateOrchestrator: 翻译编排器实例
         """
-        # 任务类型映射：配置文件中的名称 -> TaskType 枚举列表
-        task_name_map: Dict[str, List[TaskType]] = {
-            "metadata": [
-                TaskType.METADATA_DIRECTOR,
-                TaskType.METADATA_ACTOR,
-                TaskType.METADATA_CATEGORY,
-                TaskType.METADATA_TITLE,
-                TaskType.METADATA_SYNOPSIS,
-                TaskType.METADATA_STUDIO
-            ],
-            "correct": [TaskType.CORRECT_SUBTITLE],
-            "subtitle": [TaskType.TRANSLATE_SUBTITLE]
+        # 任务名称到 TaskType 的映射
+        task_name_to_type: Dict[str, TaskType] = {
+            "director": TaskType.METADATA_DIRECTOR,
+            "actor": TaskType.METADATA_ACTOR,
+            "category": TaskType.METADATA_CATEGORY,
+            "studio": TaskType.METADATA_STUDIO,
+            "title": TaskType.METADATA_TITLE,
+            "synopsis": TaskType.METADATA_SYNOPSIS,
+            "correct": TaskType.CORRECT_SUBTITLE,
+            "subtitle": TaskType.TRANSLATE_SUBTITLE
         }
 
-        provider_map: Dict[TaskType, List[Provider]] = {}
-        provider_map_yaml = config["provider_map"]
+        task_configs: Dict[TaskType, TaskConfig] = {}
+        tasks_config = config.get("config", {})
 
-        # 遍历配置中的每个任务类型
-        for task_name, providers_config in provider_map_yaml.items():
-            # 获取该任务名对应的所有 TaskType
-            task_types = task_name_map.get(task_name)
-            if not task_types:
+        # 遍历配置中的每个任务
+        for task_name, task_data in tasks_config.items():
+            task_type = task_name_to_type.get(task_name)
+            if not task_type:
                 continue
 
-            # 使用 Provider.from_config 工厂方法创建 Provider 列表
+            # 创建 Provider 列表
             providers = []
-            for provider_config in providers_config:
+            for provider_config in task_data.get("providers", []):
                 provider = Provider.from_config(provider_config)
                 if provider:
                     providers.append(provider)
 
-            # 为所有对应的 TaskType 设置相同的 Provider 列表
-            for task_type in task_types:
-                provider_map[task_type] = providers
+            # 读取 stream 配置（可选）
+            stream = task_data.get("stream")
 
-        return cls(provider_map)
+            # 读取 temperature 配置(可选)
+            temperature = task_data.get("temperature", 1.0)
+
+            # 读取 strategy 配置（可选）
+            strategy = task_data.get("strategy")
+
+            # 创建 TaskConfig
+            task_configs[task_type] = TaskConfig(
+                providers=providers,
+                stream=stream,
+                temperature=temperature,
+                strategy=strategy
+            )
+
+        # 读取需要流式请求的模型列表
+        streaming_models = config.get("streaming_models", [])
+
+        return cls(task_configs, streaming_models)
 
     @observe
-    def correct_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None,
-                         stream: bool = False) -> ProcessResult:
+    def correct_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None) -> ProcessResult:
         """
         校正字幕的专用接口
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文
@@ -92,7 +115,6 @@ class TranslateOrchestrator:
             text(str): 待校正的字幕文本
             metadata(dict)： 关于字幕的元数据
             terms(Optional[List[Term]]): 术语库
-            stream(bool): 是否使用流式调用，默认False
         Returns:
             ProcessResult: 带有校正任务结果的数据类
         """
@@ -102,11 +124,10 @@ class TranslateOrchestrator:
             text_to_process=text,
             terms=terms
         )
-        return self._process_task(context, stream=stream)
+        return self._process_task(context)
 
     @observe
-    def translate_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None,
-                           stream: bool = False) -> ProcessResult:
+    def translate_subtitle(self, text: str, metadata: dict, terms: List[Term] | None = None) -> ProcessResult:
         """翻译字幕的专用接口。
 
         这个方法实际上只是一个适配器，将简单参数转换为内部上下文。
@@ -115,7 +136,6 @@ class TranslateOrchestrator:
             text (str): 待翻译的字幕文本。
             metadata (dict): 关于字幕的元数据。
             terms(Optional[List[Term]]): 关于字幕的术语库
-            stream(bool): 是否使用流式调用，默认False
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
         """
@@ -125,18 +145,17 @@ class TranslateOrchestrator:
             terms=terms,
             text_to_process=text,
         )
-        return self._process_task(context, stream=stream)
+        return self._process_task(context)
 
     @observe
     def translate_title(self, text: str, actors: List[Dict] | None = None,
-                        actress: List[Dict] | None = None, stream: bool = False) -> ProcessResult:
+                        actress: List[Dict] | None = None) -> ProcessResult:
         """翻译标题的专用接口。
 
         Args:
             text (str): 待翻译的文本。
             actors (Optional[List[Dict]]): 相关演员列表。
             actress (Optional[List[Dict]]): 相关女优列表。
-            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -147,18 +166,17 @@ class TranslateOrchestrator:
             actors=actors,
             actress=actress
         )
-        return self._process_task(context, stream=stream)
+        return self._process_task(context)
 
     @observe
     def translate_synopsis(self, text: str, actors: List[Dict] | None = None,
-                           actress: List[Dict] | None = None, stream: bool = False) -> ProcessResult:
+                           actress: List[Dict] | None = None) -> ProcessResult:
         """翻译简介的专用接口。
 
         Args:
             text (str): 待翻译的文本。
             actors (Optional[List[Dict]]): 相关演员列表。
             actress (Optional[List[Dict]]): 相关女优列表。
-            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -169,16 +187,15 @@ class TranslateOrchestrator:
             actors=actors,
             actress=actress
         )
-        return self._process_task(context, stream=stream)
+        return self._process_task(context)
 
     @observe
-    def translate_generic_metadata(self, task_type: TaskType, text: str, stream: bool = False) -> ProcessResult:
+    def translate_generic_metadata(self, task_type: TaskType, text: str) -> ProcessResult:
         """翻译元数据的专用接口。
 
         Args:
             task_type (TaskType): 元数据任务类型（导演、演员、分类、片商等）。
             text (str): 待翻译的文本。
-            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 带有翻译任务结果的数据类。
@@ -187,49 +204,74 @@ class TranslateOrchestrator:
             task_type=task_type,
             text_to_process=text,
         )
-        return self._process_task(context, stream=stream)
+        return self._process_task(context)
 
-    def _process_task(self, context: TranslateContext, stream: bool = False) -> ProcessResult:
+    def _process_task(self, context: TranslateContext) -> ProcessResult:
         """处理任务的内部方法。
 
         根据任务类型选择合适的Provider和Strategy进行处理。
 
         Args:
             context (TranslateContext): 任务上下文。
-            stream(bool): 是否使用流式调用，默认False
 
         Returns:
             ProcessResult: 处理结果。
         """
-        providers = self.provider_map.get(context.task_type)
-        if not providers:
+        task_config = self.task_configs.get(context.task_type)
+        if not task_config or not task_config.providers:
             return ProcessResult(task_type=context.task_type, success=False, content=None, attempt_count=0, time_taken=0)
 
-        for provider in providers:
-            strategy = self._select_strategy(provider, context.task_type)
-            result = strategy.process(provider, context, stream=stream)
+        for provider in task_config.providers:
+            strategy = self._select_strategy(provider, context.task_type, task_config)
+            result = strategy.process(provider, context)
 
             if result and result.success:
                 return result
         return ProcessResult(task_type=context.task_type, success=False, content=None, attempt_count=0, time_taken=0)
 
-    @staticmethod
-    def _select_strategy(provider: Provider, task_type: TaskType) -> TranslateStrategy:
+    def _select_strategy(self, provider: Provider, task_type: TaskType, task_config: TaskConfig) -> TranslateStrategy:
         """选择合适的翻译策略。
 
         Args:
             provider (Provider): 服务提供者。
             task_type (TaskType): 任务类型。
+            task_config (TaskConfig): 任务配置。
 
         Returns:
             TranslateStrategy: 选中的翻译策略实例。
         """
+        # 判断是否使用流式请求
+        # 优先级：task_config.stream > streaming_models 列表
+        if task_config.stream is not None:
+            use_stream = task_config.stream
+        else:
+            use_stream = provider.model in self.streaming_models
+
+        # 根据任务类型选择策略
         if task_type == TaskType.CORRECT_SUBTITLE:
-            return SliceSubtitleStrategy(slice_size=500)
+            # 读取策略配置
+            strategy_config = task_config.strategy or {}
+            slice_enabled = strategy_config.get("slice", True)
+            slice_size = strategy_config.get("size", 500)
+            if slice_enabled:
+                return SliceSubtitleStrategy(slice_size=slice_size, stream=use_stream)
+            else:
+                return NoSliceSubtitleStrategy(stream=use_stream)
+
         elif task_type == TaskType.TRANSLATE_SUBTITLE:
-            return SliceSubtitleStrategy(slice_size=550)
+            # 读取策略配置
+            strategy_config = task_config.strategy or {}
+            slice_enabled = strategy_config.get("slice", True)
+            slice_size = strategy_config.get("size", 550)
+            if slice_enabled:
+                return SliceSubtitleStrategy(slice_size=slice_size, stream=use_stream)
+            else:
+                return NoSliceSubtitleStrategy(stream=use_stream)
+
         elif task_type in {TaskType.METADATA_DIRECTOR, TaskType.METADATA_ACTOR, TaskType.METADATA_CATEGORY,
                            TaskType.METADATA_STUDIO}:
-            return BuildMetaDataTranslateStrategy()
+            # 简单元数据策略（不需要上下文）
+            return SimpleMetaDataStrategy(stream=use_stream)
         else:
-            return ReplaceWithMetaDataTranslateStrategy()
+            # 上下文元数据策略（需要上下文，如 title、synopsis）
+            return ContextualMetaDataStrategy(stream=use_stream)
