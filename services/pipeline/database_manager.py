@@ -165,92 +165,42 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 影片表 - 只保留核心字段
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movies
-                       (
-                           code
-                           TEXT
-                           PRIMARY
-                           KEY,
-                           title_ja
-                           TEXT,
-                           title_zh
-                           TEXT,
-                           release_date
-                           TEXT,
-                           director_ja
-                           TEXT,
-                           studio_ja
-                           TEXT,
-                           synopsis_ja
-                           TEXT,
-                           synopsis_zh
-                           TEXT,
-                           terms
-                           TEXT,-- JSON格式存储术语列表
-                           Foreign
-                           KEY
-                       (
-                           director_ja
-                       ) REFERENCES directors
-                       (
-                           name_ja
-                       ),
-                           Foreign KEY
-                       (
-                           studio_ja
-                       ) REFERENCES studios
-                       (
-                           name_ja
-                       )
-                       )
+            create table if not exists movies(
+                code text primary key,
+                title_ja text,
+                title_zh text,
+                release_date text,
+                director_ja text,
+                studio_ja text,
+                synopsis_ja text,
+                synopsis_zh text,
+                foreign key (director_ja) references directors (name_ja),
+                foreign key (studio_ja) references studios (name_ja)
+            )
             """
         )
 
         # 视频文件表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS videos
-                       (
-                           sha256
-                           TEXT
-                           PRIMARY
-                           KEY,
-                           absolute_path
-                           TEXT
-                           UNIQUE,
-                           filename
-                           TEXT,
-                           suffix
-                           TEXT,
-                           is_deleted
-                           INTEGER
-                           NOT
-                           NULL
-                           DEFAULT
-                           0,
-                           extracted_audio_status
-                           TEXT,
-                           extracted_audio_path
-                           TEXT,
-                           denoised_audio_status
-                           TEXT,
-                           denoised_audio_path
-                           TEXT,
-                           transcribed_subtitle_status
-                           TEXT,
-                           transcribed_subtitle_path
-                           TEXT,
-                           corrected_subtitle_status
-                           TEXT,
-                           corrected_subtitle_path
-                           TEXT,
-                           translated_subtitle_status
-                           TEXT,
-                           bilingual_subtitle_path
-                           TEXT,
-                           bilingual_subtitle_status
-                           TEXT
-                       )
+            create table if not exists videos(
+                sha256 text primary key,
+                absolute_path text unique,
+                filename text,
+                suffix text,
+                is_deleted integer not null default 0,
+                extracted_audio_status text,
+                extracted_audio_path text,
+                denoised_audio_status text,
+                denoised_audio_path text,
+                transcribed_subtitle_status text,
+                transcribed_subtitle_path text,
+                corrected_subtitle_status text,
+                corrected_subtitle_path text,
+                translated_subtitle_status text,
+                bilingual_subtitle_path text,
+                bilingual_subtitle_status text
+            )
             """
         )
 
@@ -259,74 +209,79 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 导演表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS directors
-                       (
-                           name_ja
-                           TEXT
-                           PRIMARY
-                           KEY,
-                           name_zh
-                           TEXT
-                       )
+            create table if not exists directors(
+                name_ja text primary key,
+                name_zh text
+            )
             """
         )
 
         # 制作商表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS studios
-                       (
-                           name_ja
-                           TEXT
-                           PRIMARY
-                           KEY,
-                           name_zh
-                           TEXT
-                       )
+            create table if not exists studios(
+                name_ja text primary key,
+                name_zh text
+            )
             """
         )
 
         # 类别表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS categories
-                       (
-                           name_ja
-                           TEXT
-                           PRIMARY
-                           KEY,
-                           name_zh
-                           TEXT
-                       )
-            """
-        )
-
-        # 演员名表
-        cursor.execute(
-            """
-                       CREATE TABLE IF NOT EXISTS actor_names
-                       (
-                           name_ja
-                           TEXT
-                           Primary
-                           Key,
-                           name_zh
-                           TEXT,
-                           actor_id
-                           TEXT,
-                           FOREIGN KEY (actor_id) REFERENCES actors (actor_id) 
-                       )
+            create table if not exists categories(
+                name_ja text primary key,
+                name_zh text
+            )
             """
         )
 
         # 演员表
         cursor.execute(
             """
-              create table if not exists actors(
-                actor_id text primary key,
-                current_name text,
+            create table if not exists actors(
+                id text primary key autoincrement ,
+                formal_name text,
+                gender text,
+                foreign key (formal_name) references actor_names (name_ja)
+            )
+            """
+        )
+
+        # 演员名表
+        cursor.execute(
+            """
+            create table if not exists actor_names(
+                name_ja text primary key,
+                name_zh text,
+                actor_id text,
+                foreign key (actor_id) references actors (actor_id)
+            )
+            """
+        )
+
+        # 演员-电影关系表（替代原来的男演员/女演员分离表）
+        cursor.execute(
+            """
+            create table if not exists actor_actresses(
+                name_ja text primary key,
+                name_zh text,
                 gender text
-              )
+            )
+            """
+        )
+
+        # 术语表
+        cursor.execute(
+            """
+            create table if not exists terms(
+                id integer primary key autoincrement,
+                origin text not null,
+                recommended_translation text,
+                description text,
+                movie_code text not null,
+                foreign key (movie_code) references movies (code)
+            )
             """
         )
 
@@ -335,79 +290,40 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 影片-视频关系表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movie_videos
-                       (
-                           movie_code
-                           TEXT,
-                           video_sha256
-                           TEXT,
-                           PRIMARY
-                           KEY
-                       (
-                           movie_code,
-                           video_sha256
-                       ),
-                           FOREIGN KEY
-                       (
-                           movie_code
-                       ) REFERENCES movies
-                       (
-                           code
-                       ),
-                           FOREIGN KEY
-                       (
-                           video_sha256
-                       ) REFERENCES videos
-                       (
-                           sha256
-                       )
-                           )
+            create table if not exists movie_videos(
+                movie_code text,
+                video_sha256 text,
+                primary key (movie_code, video_sha256),
+                foreign key (movie_code) references movies (code),
+                foreign key (video_sha256) references videos (sha256)
+            )
             """
         )
 
         # 影片-类别关系表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movie_categories
-                       (
-                           movie_code
-                           TEXT,
-                           category_ja
-                           TEXT,
-                           PRIMARY
-                           KEY
-                       (
-                           movie_code,
-                           category_ja
-                       ),
-                           FOREIGN KEY
-                       (
-                           movie_code
-                       ) REFERENCES movies
-                       (
-                           code
-                       ),
-                           FOREIGN KEY
-                       (
-                           category_ja
-                       ) REFERENCES categories
-                       (
-                           name_ja
-                       )
-                           )
+            create table if not exists movie_categories(
+                movie_code text,
+                category_ja text,
+                primary key (movie_code, category_ja),
+                foreign key (movie_code) references movies (code),
+                foreign key (category_ja) references categories (name_ja)
+            )
             """
         )
 
+        # 演员-电影关系表（统一处理男演员和女演员）
         cursor.execute(
             """
-          create table if not exists act_in(
-            actor_id text,
-            movie_code text,
-            primary key (actor_id, movie_code),
-            foreign key (actor_id) references actors (actor_id),
-            foreign key (movie_code) references movies (code)
-        )
-        """
+            create table if not exists movie_actor_actresses(
+                movie_code text,
+                actor_ja text,
+                primary key (movie_code, actor_ja),
+                foreign key (movie_code) references movies (code),
+                foreign key (actor_ja) references actor_actresses (name_ja)
+            )
+            """
         )
         conn.commit()
         conn.close()
