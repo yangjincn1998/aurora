@@ -36,9 +36,9 @@ class TranslateOrchestrator:
     """
 
     def __init__(
-            self,
-            task_configs: Dict[TaskType, TaskConfig],
-            streaming_models: List[str] = None,
+        self,
+        task_configs: Dict[TaskType, TaskConfig],
+        streaming_models: List[str] = None,
     ):
         self.task_configs = task_configs
         self.streaming_models = streaming_models or []
@@ -119,7 +119,7 @@ class TranslateOrchestrator:
 
     @observe
     def correct_subtitle(
-            self, text: str, metadata: dict, terms: List[Term] | None = None
+        self, text: str, metadata: dict, terms: List[Term] | None = None
     ) -> ProcessResult:
         """
         校正字幕的专用接口
@@ -141,7 +141,7 @@ class TranslateOrchestrator:
 
     @observe
     def translate_subtitle(
-            self, text: str, metadata: dict, terms: List[Term] | None = None
+        self, text: str, metadata: dict, terms: List[Term] | None = None
     ) -> ProcessResult:
         """翻译字幕的专用接口。
 
@@ -164,10 +164,10 @@ class TranslateOrchestrator:
 
     @observe
     def translate_title(
-            self,
-            text: str,
-            actors: List[Dict] | None = None,
-            actress: List[Dict] | None = None,
+        self,
+        text: str,
+        actors: List[Dict] | None = None,
+        actress: List[Dict] | None = None,
     ) -> ProcessResult:
         """翻译标题的专用接口。
 
@@ -189,10 +189,10 @@ class TranslateOrchestrator:
 
     @observe
     def translate_synopsis(
-            self,
-            text: str,
-            actors: List[Dict] | None = None,
-            actress: List[Dict] | None = None,
+        self,
+        text: str,
+        actors: List[Dict] | None = None,
+        actress: List[Dict] | None = None,
     ) -> ProcessResult:
         """翻译简介的专用接口。
 
@@ -214,7 +214,7 @@ class TranslateOrchestrator:
 
     @observe
     def translate_generic_metadata(
-            self, task_type: TaskType, text: str
+        self, task_type: TaskType, text: str
     ) -> ProcessResult:
         """翻译元数据的专用接口。
 
@@ -267,7 +267,7 @@ class TranslateOrchestrator:
         )
 
     def _select_strategy(
-            self, provider: Provider, task_type: TaskType, task_config: TaskConfig
+        self, provider: Provider, task_type: TaskType, task_config: TaskConfig
     ) -> TranslateStrategy:
         """选择合适的翻译策略。
 

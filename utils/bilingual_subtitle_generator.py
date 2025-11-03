@@ -53,9 +53,9 @@ def _format_seconds_to_ass(seconds: float) -> str:
 
 
 def _find_matching_chinese_subtitle(
-        jap_sub: pysrt.SubRipItem,
-        chinese_subs: List[pysrt.SubRipItem],
-        time_tolerance_ms: int = 500,
+    jap_sub: pysrt.SubRipItem,
+    chinese_subs: List[pysrt.SubRipItem],
+    time_tolerance_ms: int = 500,
 ) -> Optional[pysrt.SubRipItem]:
     """
     根据时间戳匹配找到对应的中文字幕。
@@ -77,8 +77,8 @@ def _find_matching_chinese_subtitle(
 
         # 检查时间重叠
         if (
-                abs(jap_start - ch_start) <= time_tolerance_ms
-                and abs(jap_end - ch_end) <= time_tolerance_ms
+            abs(jap_start - ch_start) <= time_tolerance_ms
+            and abs(jap_end - ch_end) <= time_tolerance_ms
         ):
             return ch_sub
 
@@ -204,10 +204,10 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
 
 
 def generate_bilingual_ass_subtitle(
-        japanese_srt_path: str,
-        chinese_srt_path: str,
-        output_title: str = "Bilingual Subtitle",
-        metadata: Optional[Any] = None,
+    japanese_srt_path: str,
+    chinese_srt_path: str,
+    output_title: str = "Bilingual Subtitle",
+    metadata: Optional[Any] = None,
 ) -> str:
     """
     生成双语ASS字幕内容。
@@ -287,10 +287,10 @@ def generate_bilingual_ass_subtitle(
 
 
 def save_bilingual_ass_subtitle(
-        japanese_srt_path: str,
-        chinese_srt_path: str,
-        output_path: str,
-        output_title: str = "Bilingual Subtitle",
+    japanese_srt_path: str,
+    chinese_srt_path: str,
+    output_path: str,
+    output_title: str = "Bilingual Subtitle",
 ) -> None:
     """
     生成并保存双语ASS字幕文件。

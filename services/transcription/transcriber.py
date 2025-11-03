@@ -37,13 +37,13 @@ class WhisperTranscriber(Transcriber):
     """
 
     def __init__(
-            self,
-            model_size: str = "medium",
-            device: str = "cuda",
-            compute_type: str = "float16",
-            language: str = "ja",
-            beam_size: int = 6,
-            vad_filter: bool = True,
+        self,
+        model_size: str = "medium",
+        device: str = "cuda",
+        compute_type: str = "float16",
+        language: str = "ja",
+        beam_size: int = 6,
+        vad_filter: bool = True,
     ):
         """
         初始化 WhisperTranscriber。

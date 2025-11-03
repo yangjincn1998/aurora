@@ -19,13 +19,13 @@ logger = get_logger(__name__)
 
 class Pipeline:
     def __init__(
-            self,
-            movie_stages: List[MoviePipelineStage],
-            video_stages: List[VideoPipelineStage],
-            code_extractor: CodeExtractor,
-            manifest: Manifest,
-            translator: TranslateOrchestrator,
-            output_dir: str = os.path.join(os.getcwd(), "output"),
+        self,
+        movie_stages: List[MoviePipelineStage],
+        video_stages: List[VideoPipelineStage],
+        code_extractor: CodeExtractor,
+        manifest: Manifest,
+        translator: TranslateOrchestrator,
+        output_dir: str = os.path.join(os.getcwd(), "output"),
     ):
         self.movie_stages = movie_stages
         self.video_stages = video_stages
@@ -37,7 +37,7 @@ class Pipeline:
         )
 
     def _get_next_stage(
-            self, movie: Movie, video: Optional[Video] = None
+        self, movie: Movie, video: Optional[Video] = None
     ) -> Optional[PipelineStage]:
         """根据实体当前状态，决定下一个要执行的阶段。"""
         target_entity = video if video else movie
@@ -73,22 +73,10 @@ class Pipeline:
 
         # 规范化命名
         for video in movie.videos:
-            actresses = movie.metadata.actresses
-            if isinstance(actresses, BilingualList):
-                actresses_list = (
-                    actresses.translated if actresses.translated else actresses.original
-                )
-            elif isinstance(actresses, list):
-                actresses_list = [
-                    a.translated if a.translated else a.original for a in actresses
-                ]
-            else:
-                actresses_list = []
-            actresses_text = " ".join(actresses_list)
             video_name = (
                 movie.code + " " + movie.metadata.title.translated
                 if movie.metadata.title.translated
-                else movie.metadata.title.original + ", " + actresses_text
+                else movie.metadata.title.original
             )
             new_abs_path = str(
                 Path(video.absolute_path).parent / (video_name + video.suffix)
@@ -116,6 +104,7 @@ class Pipeline:
                 next_stage.execute(movie, video, self.context)
                 # 通过 context 更新 manifest
                 if isinstance(next_stage, CorrectStage):
+                    # todo: 只需更新术语库即可
                     self.context.update_movie(movie)
                 self.context.update_video(video)
 

@@ -31,11 +31,11 @@ class Serializable:
         elif isinstance(value, tuple):
             return tuple(self._to_serializable_structure_recursive(v) for v in value)
         elif isinstance(value, Serializable):
-            return value.to_serializable_dict()
+            return value.to_serial_dict()
         else:
             return value
 
-    def to_serializable_dict(self) -> dict:
+    def to_serial_dict(self) -> dict:
         """将对象转换为可序列化的字典格式。"""
         serial_dict = {}
         for field in fields(self):

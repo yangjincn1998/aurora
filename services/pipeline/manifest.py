@@ -17,7 +17,7 @@ class Manifest(ABC):
 
     @abstractmethod
     def update_video_location(
-            self, video: Video, filename: str, new_absolute_path: str
+        self, video: Video, filename: str, new_absolute_path: str
     ):
         """
         更新video的文件位置
@@ -69,7 +69,7 @@ class Manifest(ABC):
 
     @abstractmethod
     def update_entity(
-            self, entity_type: MetadataType, original_name: str, translated_name: str
+        self, entity_type: MetadataType, original_name: str, translated_name: str
     ):
         """
         用元数据实体信息更新清单
@@ -467,6 +467,7 @@ class SQLiteManifest(Manifest):
         conn.commit()
         conn.close()
 
+    # todo: 重写抓取逻辑
     def get_metadata(self, movie_code: str) -> Metadata | None:
         """从数据库查询影片元数据。
 
@@ -498,11 +499,11 @@ class SQLiteManifest(Manifest):
 
             # 如果影片存在但没有任何元数据，也返回 None
             if not any(
-                    [
-                        movie_row["title_ja"],
-                        movie_row["director_ja"],
-                        movie_row["studio_ja"],
-                    ]
+                [
+                    movie_row["title_ja"],
+                    movie_row["director_ja"],
+                    movie_row["studio_ja"],
+                ]
             ):
                 return None
 
@@ -637,6 +638,7 @@ class SQLiteManifest(Manifest):
         finally:
             conn.close()
 
+    # todo: 更改 update_movie 以适应新的表结构
     def update_movie(self, movie: Movie):
         """
         更新影片的元数据信息。
@@ -816,7 +818,7 @@ class SQLiteManifest(Manifest):
             conn.close()
 
     def _get_or_create_entity(
-            self, cursor, table_name: str, name_ja: str, name_zh: str = None
+        self, cursor, table_name: str, name_ja: str, name_zh: str = None
     ):
         """
         获取或创建元数据实体（导演、制作商、类别、演员等）。
@@ -848,6 +850,7 @@ class SQLiteManifest(Manifest):
             # 如果没有提供name_zh，只在不存在时插入
             cursor.execute(
                 f"""
+                        
                            INSERT OR IGNORE INTO {table_name} (name_ja, name_zh)
                            VALUES (?, NULL)
                            """,
@@ -855,7 +858,7 @@ class SQLiteManifest(Manifest):
             )
 
     def update_entity(
-            self, entity_type: MetadataType, original_name: str, translated_name: str
+        self, entity_type: MetadataType, original_name: str, translated_name: str
     ):
         """
         更新元数据实体的翻译。
@@ -867,8 +870,8 @@ class SQLiteManifest(Manifest):
         """
         table_map = {
             MetadataType.DIRECTOR: "director",
-            MetadataType.ACTOR: "actor",
-            MetadataType.ACTRESS: "actress",
+            MetadataType.ACTOR: "actor_name",
+            MetadataType.ACTRESS: "actress_name",
             MetadataType.STUDIO: "studio",
             MetadataType.CATEGORY: "category",
         }
@@ -926,8 +929,8 @@ class SQLiteManifest(Manifest):
                 # 其他实体从对应表查询
                 table_map = {
                     MetadataType.DIRECTOR: "director",
-                    MetadataType.ACTOR: "actor",
-                    MetadataType.ACTRESS: "actress",
+                    MetadataType.ACTOR: "actor_name",
+                    MetadataType.ACTRESS: "actress_name",
                     MetadataType.CATEGORY: "category",
                     MetadataType.STUDIO: "studio",
                 }
@@ -1056,7 +1059,7 @@ class SQLiteManifest(Manifest):
             conn.close()
 
     def update_video_location(
-            self, video: Video, filename: str, new_absolute_path: str
+        self, video: Video, filename: str, new_absolute_path: str
     ):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -1140,7 +1143,7 @@ class SQLiteManifest(Manifest):
             ][1]
             final_product_path = row[final_product_path_col]
             final_product_exists = (
-                    final_product_path and Path(final_product_path).exists()
+                final_product_path and Path(final_product_path).exists()
             )
 
             if final_product_exists:

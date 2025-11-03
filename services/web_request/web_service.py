@@ -30,7 +30,7 @@ class WebService(ABC):
         pass
 
     @abstractmethod
-    def get_metadata(self, av_code: str) -> Metadata:
+    def fetch_metadata(self, av_code: str) -> Metadata:
         """
         根据av番号检索影片元数据的方法
         Args:

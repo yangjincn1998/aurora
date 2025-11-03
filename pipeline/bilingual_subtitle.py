@@ -51,8 +51,8 @@ class BilingualSubtitleStage(VideoPipelineStage):
             bool: 如果双语字幕阶段未成功完成则返回True。
         """
         return (
-                video.status.get(PiplinePhase.BILINGUAL_SUBTITLE, StageStatus.PENDING)
-                != StageStatus.SUCCESS
+            video.status.get(PiplinePhase.BILINGUAL_SUBTITLE, StageStatus.PENDING)
+            != StageStatus.SUCCESS
         )
 
     def execute(self, movie: Movie, video: Video, context: PipelineContext):

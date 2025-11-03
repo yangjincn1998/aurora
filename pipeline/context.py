@@ -88,7 +88,7 @@ class PipelineContext:
     # ========== 元数据实体操作 ==========
 
     def get_entity(
-            self, entity_type: MetadataType, original_name: str
+        self, entity_type: MetadataType, original_name: str
     ) -> Optional[str]:
         """从清单中查询元数据实体的翻译。
 
@@ -105,7 +105,7 @@ class PipelineContext:
         return self.manifest.get_entity(entity_type, original_name)
 
     def update_entity(
-            self, entity_type: MetadataType, original_name: str, translated_name: str
+        self, entity_type: MetadataType, original_name: str, translated_name: str
     ) -> None:
         """更新元数据实体的翻译到清单。
 

@@ -37,13 +37,13 @@ class TranslateStage(VideoPipelineStage):
             bool: 如果翻译阶段未成功完成则返回True。
         """
         return (
-                video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING)
-                != StageStatus.SUCCESS
+            video.status.get(PiplinePhase.TRANSLATE_SUBTITLE, StageStatus.PENDING)
+            != StageStatus.SUCCESS
         )
 
     @observe
     def execute(
-            self, movie: Movie, video: Video, context: PipelineContext, stream=False
+        self, movie: Movie, video: Video, context: PipelineContext, stream=False
     ):
         """执行字幕翻译处理。
 
@@ -62,7 +62,7 @@ class TranslateStage(VideoPipelineStage):
             tags=[context.movie_code, "translation", "subtitle"],
         )
 
-        metadata = movie.metadata.to_serializable_dict()
+        metadata = movie.metadata.to_serial_dict()
         text_path = video.by_products[PiplinePhase.CORRECT_SUBTITLE]
         text = Path(text_path).read_text(encoding="utf-8")
         result: ProcessResult = context.translator.translate_subtitle(

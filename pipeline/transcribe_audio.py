@@ -93,7 +93,7 @@ class TranscribeAudioStage(VideoPipelineStage):
         if success and srt_content:
             # 确定输出路径
             output_path = (
-                    Path(context.output_dir) / movie.code / f"{video.filename}.raw.srt"
+                Path(context.output_dir) / movie.code / f"{video.filename}.raw.srt"
             )
             output_path.write_text(srt_content, encoding="utf-8")
             logger.info(

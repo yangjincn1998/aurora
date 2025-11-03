@@ -22,7 +22,7 @@ class CustomFormatter(logging.Formatter):
 
 
 def setup_logger(
-        name: str = "av_translator", log_level: str = "INFO", log_file: Optional[str] = None
+    name: str = "av_translator", log_level: str = "INFO", log_file: Optional[str] = None
 ) -> logging.Logger:
     """
     设置日志系统

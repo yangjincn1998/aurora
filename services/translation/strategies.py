@@ -65,7 +65,7 @@ class TranslateStrategy(ABC):
 
     @staticmethod
     def _check_provider_available(
-            provider, task_type: TaskType
+        provider, task_type: TaskType
     ) -> Optional[ProcessResult]:
         """
         检查 Provider 是否可用（熔断检查）
@@ -302,14 +302,14 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         )
 
     def _process_linked_list_with_best_effort(
-            self,
-            provider,
-            context,
-            head: SubtitleBlock,
-            total_attempt_count: int,
-            total_api_time: int,
-            stream: bool = False,
-            temperature: Optional[float] = None,
+        self,
+        provider,
+        context,
+        head: SubtitleBlock,
+        total_attempt_count: int,
+        total_api_time: int,
+        stream: bool = False,
+        temperature: Optional[float] = None,
     ) -> Tuple[SubtitleBlock, int, int]:
         """尽力而为地处理链表。
 

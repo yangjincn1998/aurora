@@ -198,7 +198,7 @@ def update_translate_context(context, chat_result):
 
 
 def aggregate_successful_results(
-        head, task_type, total_attempt_count: int, total_time_taken: int
+    head, task_type, total_attempt_count: int, total_time_taken: int
 ):
     """聚合链表中所有成功节点的处理结果。
 

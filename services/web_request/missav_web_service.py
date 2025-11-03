@@ -68,9 +68,9 @@ class MissAvWebService(WebService):
                     time.sleep(sleep_duration)
                 else:
                     if (
-                            response
-                            and hasattr(response, "status_code")
-                            and response.status_code not in [403, 404]
+                        response
+                        and hasattr(response, "status_code")
+                        and response.status_code not in [403, 404]
                     ):
                         logger.error(f"所有请求均失败，服务{self.url}可能出现问题。")
                         raise ConnectionError(f"HTTP请求失败：{e}.")
@@ -190,7 +190,7 @@ class MissAvWebService(WebService):
             #     # 中文页面通常只显示简称，这里我们不提取，以日文为准
             #     pass
 
-    def get_metadata(self, av_code: str) -> Metadata | None:
+    def fetch_metadata(self, av_code: str) -> Metadata | None:
         """
         通过请求日文和中文两个页面，来获取最完整的元数据。
         """
@@ -248,8 +248,8 @@ if __name__ == "__main__":
     dotenv.load_dotenv()
     server = MissAvWebService()
 
-    metadata = server.get_metadata("SSIS-001")
+    metadata = server.fetch_metadata("SSIS-001")
     if metadata:
-        print(metadata.to_serializable_dict())
+        print(metadata.to_serial_dict())
     else:
         print("None")

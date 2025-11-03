@@ -183,7 +183,7 @@ class OpenaiProvider(Provider):
 
     @classmethod
     def _generate_config_key(
-            cls, api_key: str, base_url: str, model: str, timeout: int
+        cls, api_key: str, base_url: str, model: str, timeout: int
     ) -> str:
         """生成配置的唯一键，用于享元模式缓存。
 
@@ -489,8 +489,8 @@ class OpenaiProvider(Provider):
                 error_message = str(e)
                 # 检查是否是额度不足（insufficient_quota）
                 if (
-                        "insufficient_quota" in error_message.lower()
-                        or "quota" in error_message.lower()
+                    "insufficient_quota" in error_message.lower()
+                    or "quota" in error_message.lower()
                 ):
                     logger.error(f"OpenAI API insufficient quota: {error_message}")
                     self._available = False  # 触发熔断

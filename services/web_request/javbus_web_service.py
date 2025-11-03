@@ -108,7 +108,8 @@ class JavBusWebService(WebService):
             logger.error(f"请求番号 {av_code} 发生未知网络错误: {e}")
             raise
 
-    def get_metadata(self, av_code: str) -> Metadata:
+    # todo: 更新 fetch_metadata 以适应新的数据库表结构
+    def fetch_metadata(self, av_code: str) -> Metadata:
         """
         根据av番号检索并解析影片元数据。
 
@@ -297,7 +298,7 @@ class JavBusWebService(WebService):
         for i, p_tag in enumerate(all_p_tags):
             # 查找包含"演員"或"star-show"的header标签
             if p_tag.get("class") == ["star-show"] or (
-                    "演" in p_tag.get_text() and "header" in str(p_tag.get("class"))
+                "演" in p_tag.get_text() and "header" in str(p_tag.get("class"))
             ):
                 # 下一个p标签包含演员信息
                 if i + 1 < len(all_p_tags):

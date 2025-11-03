@@ -29,7 +29,7 @@ def recursive_replace(data_structure, replacements):
 
 
 def build_message_with_uuid(
-        system_prompt: str, examples: Dict[str, str], query: str
+    system_prompt: str, examples: Dict[str, str], query: str
 ) -> List[Dict[str, str]]:
     """构建带有UUID前缀的消息，用于元数据翻译。
 
@@ -52,7 +52,7 @@ def build_message_with_uuid(
 
 
 def build_message_with_replacements(
-        system_prompt: str, examples: List[tuple], query: Dict, context
+    system_prompt: str, examples: List[tuple], query: Dict, context
 ) -> List[Dict[str, str]]:
     """构建带有上下文替换的消息，用于元数据翻译。
 
@@ -81,7 +81,7 @@ def build_message_with_replacements(
 
 
 def build_subtitle_messages(
-        system_prompt: str, user_query: Dict[str, Any], context, node_text: str
+    system_prompt: str, user_query: Dict[str, Any], context, node_text: str
 ) -> List[Dict[str, str]]:
     """构建字幕处理消息。
 

@@ -47,7 +47,6 @@ class ProcessResult:
     attempt_count: int  # 调用大模型的总次数
     time_taken: int  # 总耗时（毫秒）
     content: Optional[str]
-    terms: Optional[Set[Dict]] = None  # 术语提取与翻译结果
     differences: Optional[List[Dict]] = None  # 改动列表
     terms: Optional[List[Term]] = None
     success: bool = True  # 是否处理成功

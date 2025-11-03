@@ -1,5 +1,5 @@
 from dataclasses import fields
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from langfuse import observe, get_client
 
@@ -52,10 +52,10 @@ class ScrapeStage(MoviePipelineStage):
 
     @staticmethod
     def _get_translation_with_caching(
-            context: PipelineContext,
-            entity_type: MetadataType,
-            original_text: str,
-            translation_func,
+        context: PipelineContext,
+        entity_type: MetadataType,
+        original_text: str,
+        translation_func,
     ) -> Optional[str]:
         """
         【重构核心】通用的缓存与翻译逻辑。
@@ -75,13 +75,12 @@ class ScrapeStage(MoviePipelineStage):
         logger.info(f"Attempt to translate '{entity_type.name}': '{original_text}'")
         translate_result = translation_func()
 
-        # 3. 更新缓存并返回
+        # 3. 返回
         if translate_result and translate_result.success:
             translated_text = translate_result.content
             logger.info(
                 f"Translated {entity_type.name} '{original_text}' to '{translated_text}'"
             )
-            context.update_entity(entity_type, original_text, translated_text)
             return translated_text
 
         logger.warning(f"Translation failed for {entity_type.name} '{original_text}'")
@@ -89,11 +88,11 @@ class ScrapeStage(MoviePipelineStage):
 
     @observe
     def _translate_generic_field(
-            self,
-            context: PipelineContext,
-            original_text: str,
-            metadata_type: MetadataType,
-            task_type: TaskType,
+        self,
+        context: PipelineContext,
+        original_text: str,
+        metadata_type: MetadataType,
+        task_type: TaskType,
     ) -> Optional[str]:
         """翻译通用的、无额外上下文的元数据字段。"""
         langfuse = get_client()
@@ -112,7 +111,7 @@ class ScrapeStage(MoviePipelineStage):
 
     @observe
     def _translate_title(
-            self, context: PipelineContext, metadata: Metadata
+        self, context: PipelineContext, metadata: Metadata
     ) -> Optional[str]:
         """翻译标题（需要演员上下文）。"""
         langfuse = get_client()
@@ -129,14 +128,22 @@ class ScrapeStage(MoviePipelineStage):
             original_text=metadata.title.original,
             translation_func=lambda: context.translator.translate_title(
                 text=metadata.title.original,
-                actors=[a.to_serializable_dict() for a in metadata.actors],
-                actress=[a.to_serializable_dict() for a in metadata.actresses],
+                actors=[
+                    name.to_serial_dict()
+                    for a in metadata.actors
+                    for name in a.all_names
+                ],
+                actress=[
+                    name.to_serial_dict()
+                    for a in metadata.actresses
+                    for name in a.all_names
+                ],
             ),
         )
 
     @observe
     def _translate_synopsis(
-            self, context: PipelineContext, metadata: Metadata
+        self, context: PipelineContext, metadata: Metadata
     ) -> Optional[str]:
         """翻译简介（需要演员上下文）。"""
         langfuse = get_client()
@@ -153,10 +160,80 @@ class ScrapeStage(MoviePipelineStage):
             original_text=metadata.synopsis.original,
             translation_func=lambda: context.translator.translate_synopsis(
                 text=metadata.synopsis.original,
-                actors=[a.to_serializable_dict() for a in metadata.actors],
-                actress=[a.to_serializable_dict() for a in metadata.actresses],
+                actors=[
+                    name.to_serial_dict()
+                    for a in metadata.actors
+                    for name in a.all_names
+                ],
+                actress=[
+                    name.to_serial_dict()
+                    for a in metadata.actresses
+                    for name in a.all_names
+                ],
             ),
         )
+
+    def _translate_data_structure(
+        self,
+        data,
+        context: PipelineContext,
+        metadata_type: MetadataType,
+        task_type: TaskType,
+    ) -> Any:
+        if isinstance(data, BilingualText) and not data.translated:
+            logger.info(f"Processing BilingualText value {data}...")
+            data.translated = self._translate_generic_field(
+                context, data.original, metadata_type, task_type
+            )
+            return data
+        elif isinstance(data, BilingualList) and (
+            not data.translated or len(data.translated) != len(data.original)
+        ):
+            logger.info(f"Processing bilingual list object...")
+            translated_list = []
+            for item in data.original:
+                logger.info(f"Processing item {item}...")
+                translated = self._translate_generic_field(
+                    context, item, metadata_type, task_type
+                )
+                translated_list.append(translated if translated else item)
+            data.translated = translated_list
+            return data
+        elif isinstance(data, list):
+            return [
+                self._translate_data_structure(item, context, metadata_type, task_type)
+                for item in data
+            ]
+        elif isinstance(data, dict):
+            return {
+                key: self._translate_data_structure(
+                    item, context, metadata_type, task_type
+                )
+                for key, item in data.items()
+            }
+        elif isinstance(data, tuple):
+            return (
+                self._translate_data_structure(item, context, metadata_type, task_type)
+                for item in data
+            )
+        elif isinstance(data, set):
+            return {
+                self._translate_data_structure(item, context, metadata_type, task_type)
+                for item in data
+            }
+        elif isinstance(data, (str, int, float, bool)):
+            return data
+        else:
+            for field in fields(data):
+                value = getattr(data, field.name)
+                setattr(
+                    data,
+                    field.name,
+                    self._translate_data_structure(
+                        value, context, metadata_type, task_type
+                    ),
+                )
+            return data
 
     @observe
     def execute(self, movie: Movie, context: PipelineContext):
@@ -174,15 +251,14 @@ class ScrapeStage(MoviePipelineStage):
 
         metadata = context.get_metadata(movie.code)
         movie.metadata = metadata
-        if movie.metadata is None or not movie.metadata.categories:
+        if movie.metadata is None:
             logger.info(f"Starting metadata scraping for {movie.code}...")
             # 抓取逻辑实现
             for server in self.web_servers:
                 try:
                     logger.info(f"Trying to scrape {movie.code} from {server.url}...")
-                    metadata: Metadata = server.get_metadata(movie.code)
+                    metadata: Metadata = server.fetch_metadata(movie.code)
                     movie.metadata = metadata
-                    context.update_movie(movie)
                     break
                 except Exception as e:
                     logger.warning(
@@ -212,38 +288,7 @@ class ScrapeStage(MoviePipelineStage):
             metadata_type, task_type = field_map[field.name]
             value = getattr(movie.metadata, field.name)
             logger.info(f'Check generic field: "{field.name}"...')
-
-            if isinstance(value, BilingualText) and not value.translated:
-                logger.info(f"Processing value {value}...")
-                value.translated = self._translate_generic_field(
-                    context, value.original, metadata_type, task_type
-                )
-            elif isinstance(value, BilingualList) and (
-                    not value.translated or len(value.translated) != len(value.original)
-            ):
-                logger.info(f"Processing bilingual list object...")
-                translated_list = []
-                for item in value.original:
-                    logger.info(f"Processing item {item}...")
-                    translated = self._translate_generic_field(
-                        context, item, metadata_type, task_type
-                    )
-                    translated_list.append(translated if translated else item)
-                value.translated = translated_list
-            elif isinstance(value, list):
-                logger.info(f"Processing list object...")
-                for item in value:
-                    logger.info(f"Check list item {item}...")
-                    if isinstance(item, BilingualText) and not item.translated:
-                        logger.info(f"item {item} needs process...")
-                        item.translated = self._translate_generic_field(
-                            context, item.original, metadata_type, task_type
-                        )
-                    else:
-                        logger.info(f"item {item} has been processed.")
-            else:
-                logger.info(f"{field.name}: {value} need not translation.")
-                continue
+            self._translate_data_structure(value, context, metadata_type, task_type)
 
         # 最后翻译需要上下文的字段
         logger.info("Processing field title...")

@@ -135,7 +135,7 @@ class QualityChecker:
             max_gap = 0
             for i in range(1, len(timestamps)):
                 gap = (
-                        timestamps[i][0] - timestamps[i - 1][1]
+                    timestamps[i][0] - timestamps[i - 1][1]
                 )  # 当前开始时间 - 前一个结束时间
                 max_gap = max(max_gap, gap)
 
@@ -287,7 +287,7 @@ class QualityChecker:
             bool: 如果字幕质量合格返回True，否则返回False。
         """
         return (
-                self._format_quality_check(text)
-                and self._rule_quality_check(text)
-                and self._llm_quality_check(text, context)
+            self._format_quality_check(text)
+            and self._rule_quality_check(text)
+            and self._llm_quality_check(text, context)
         )

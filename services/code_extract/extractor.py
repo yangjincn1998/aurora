@@ -25,10 +25,10 @@ class CodeExtractor:
     """
 
     def __init__(
-            self,
-            web_servers: List[WebService],
-            prefix_path: str = str(Path(__file__).parent / "prefix.txt"),
-            noise_path: str = str(Path(__file__).parent / "noise.txt"),
+        self,
+        web_servers: List[WebService],
+        prefix_path: str = str(Path(__file__).parent / "prefix.txt"),
+        noise_path: str = str(Path(__file__).parent / "noise.txt"),
     ):
         self.web_services = web_servers
         self.prefix_path = prefix_path
@@ -98,7 +98,7 @@ class CodeExtractor:
         group1 = match_g1.group(1)
 
         # --- 3. 获取剩余字符串 ---
-        remainder = code[match_g1.end():]
+        remainder = code[match_g1.end() :]
 
         # --- 4. 循环所有可能的分割点 ---
         for i in range(len(remainder) + 1):

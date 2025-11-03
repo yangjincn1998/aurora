@@ -16,10 +16,10 @@ class TranscriptionService:
     """
 
     def __init__(
-            self,
-            transcriber_factory: TranscriberFactory,
-            quality_checker: QualityChecker,
-            max_retries: int = 2,
+        self,
+        transcriber_factory: TranscriberFactory,
+        quality_checker: QualityChecker,
+        max_retries: int = 2,
     ):
         """初始化转写服务。
 
@@ -48,7 +48,7 @@ class TranscriptionService:
         return cls(transcriber_factory, quality_checker)
 
     def transcribe_with_quality_check(
-            self, audio_path: str, context: "PipelineContext"
+        self, audio_path: str, context: "PipelineContext"
     ) -> Tuple[bool, Optional[str], Optional[str]]:
         """转写音频并进行质量检测，支持重试机制。
 

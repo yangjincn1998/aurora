@@ -7,7 +7,7 @@ import os
 
 
 def calculate_partial_sha256(
-        file_path: str, size: int = 1024 * 1024, from_center: bool = True
+    file_path: str, size: int = 1024 * 1024, from_center: bool = True
 ) -> str:
     """
     计算文件部分内容的 SHA256 哈希值。

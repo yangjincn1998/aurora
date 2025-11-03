@@ -62,7 +62,7 @@ class CorrectStage(VideoPipelineStage):
         )
         result: ProcessResult = context.translator.correct_subtitle(
             text=srt_raw,
-            metadata=movie.metadata.to_serializable_dict(),
+            metadata=movie.metadata.to_serial_dict(),
             terms=movie.terms,
         )
         if result.success:

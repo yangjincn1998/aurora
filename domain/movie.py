@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Optional, List, Dict, Any, Union, TypedDict, NotRequired
 
 from domain.subtitle import BilingualText, BilingualList, Serializable
@@ -9,6 +9,20 @@ class Term(TypedDict):
     japanese: str
     recommended_chinese: NotRequired[str]
     description: NotRequired[str]
+
+
+@dataclass
+class Actor:
+    """
+    演员类
+
+    Attributes：
+        formal_name: 演员的现在的通用艺名日语
+        all_name: 演员的所有艺名，包括别名和曾用名
+    """
+
+    formal_name: str
+    all_names: List[BilingualText]
 
 
 @dataclass
@@ -36,8 +50,20 @@ class Metadata(Serializable):
     synopsis: Optional[BilingualText] = None
 
     categories: Union[List[BilingualText], BilingualList, None] = None
-    actors: List[BilingualText] | BilingualList = field(default_factory=list)
-    actresses: List[BilingualText] | BilingualList = field(default_factory=list)
+    actors: List[Actor] = field(default_factory=list)
+    actresses: List[Actor] = field(default_factory=list)
+
+    def to_serial_dict(self) -> dict:
+        serial_dict = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if f.name in {"actors", "actresses"}:
+                serial_dict[f.name] = [
+                    name.to_serial_dict() for actor in value for name in actor.all_names
+                ]
+            else:
+                serial_dict[f.name] = self._to_serializable_structure_recursive(value)
+        return serial_dict
 
 
 @dataclass

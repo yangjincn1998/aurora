@@ -73,11 +73,11 @@ class NoiseReduceDenoiser(Denoiser):
     """
 
     def __init__(
-            self,
-            segment_duration: int = 30,
-            prop_decrease: float = 0.8,
-            stationary: bool = True,
-            noise_sample_duration: float = 1.0,
+        self,
+        segment_duration: int = 30,
+        prop_decrease: float = 0.8,
+        stationary: bool = True,
+        noise_sample_duration: float = 1.0,
     ):
         """
         初始化 NoiseReduceDenoiser。
