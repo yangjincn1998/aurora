@@ -4,8 +4,9 @@
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+from contextlib import contextmanager
 
 from domain.movie import Movie, Video, Metadata
 from models.enums import MetadataType
@@ -31,11 +32,76 @@ class PipelineContext:
         langfuse_session_id (str|None): Langfuse 会话 ID，用于跟踪翻译请求
     """
 
-    manifest: DatabaseManager
+    database_manager: DatabaseManager
     translator: TranslateOrchestrator
     movie_code: str = ""
     langfuse_session_id: str | None = None
     output_dir: str = os.path.join(os.getcwd(), "output")
+    _current_cursor: Optional = field(default=None, init=False)
+    _current_connection: Optional = field(default=None, init=False)
+
+    # ========== 数据库连接管理 ==========
+
+    def begin_transaction(self):
+        """开始事务，返回cursor用于整个影片处理过程"""
+        if self._current_cursor is not None:
+            raise RuntimeError("Transaction already in progress")
+
+        # 创建一个新的连接和cursor，保持连接打开
+        import sqlite3
+
+        self._current_connection = sqlite3.connect(self.database_manager.db_path)
+        self._current_cursor = self._current_connection.cursor()
+        return self._current_cursor
+
+    def commit_transaction(self):
+        """提交事务"""
+        if self._current_connection is not None:
+            try:
+                self._current_connection.commit()
+            except Exception as e:
+                print(f"提交事务时出错: {e}")
+        self._cleanup_transaction()
+
+    def rollback_transaction(self):
+        """回滚事务"""
+        if self._current_connection is not None:
+            try:
+                self._current_connection.rollback()
+            except Exception as e:
+                print(f"回滚事务时出错: {e}")
+        self._cleanup_transaction()
+
+    def _cleanup_transaction(self):
+        """清理事务资源"""
+        if self._current_connection is not None:
+            try:
+                self._current_connection.close()
+            except:
+                pass
+        self._current_connection = None
+        self._current_cursor = None
+
+    @contextmanager
+    def get_cursor(self, commit: bool = False):
+        """获取数据库游标，用于原子操作。
+
+        Args:
+            commit (bool): 是否在退出时自动提交事务
+
+        Yields:
+            sqlite3.Cursor: 数据库游标
+        """
+        if self._current_cursor is not None:
+            # 如果已有活跃的cursor，直接使用
+            yield self._current_cursor
+            if commit:
+                # 对于事务中的cursor，不自动commit
+                pass
+        else:
+            # 创建新的cursor
+            with self.database_manager.get_cursor(commit=commit) as cursor:
+                yield cursor
 
     # ========== Movie 相关操作 ==========
 
@@ -45,10 +111,12 @@ class PipelineContext:
         Args:
             movie (Movie): 待注册的电影对象
         """
-        self.manifest.register_movie(movie)
+        with self.get_cursor() as cursor:
+            self.database_manager.register_movie(movie, cursor)
 
     def get_metadata(self, movie_code: str) -> Optional[Metadata]:
-        return self.manifest.get_metadata(movie_code)
+        with self.get_cursor() as cursor:
+            return self.database_manager.get_metadata(movie_code, cursor)
 
     def update_movie(self, movie: Movie) -> None:
         """更新 Movie 的元数据信息到清单。
@@ -56,7 +124,8 @@ class PipelineContext:
         Args:
             movie (Movie): 待更新的电影对象
         """
-        self.manifest.update_movie(movie)
+        with self.get_cursor() as cursor:
+            self.database_manager.update_movie(movie, cursor)
 
     # ========== Video 相关操作 ==========
     def update_video_location(self, video: Video, filename, absolute_path) -> None:
@@ -67,7 +136,10 @@ class PipelineContext:
             filename(str): 视频文件名
             absolute_path(str): 视频文件绝对路径
         """
-        self.manifest.update_video_location(video, filename, absolute_path)
+        with self.get_cursor() as cursor:
+            self.database_manager.update_video_location(
+                video, filename, absolute_path, cursor
+            )
 
     def set_video_status(self, video: Video) -> None:
         """从清单中读取并设置 Video 的状态。
@@ -75,7 +147,8 @@ class PipelineContext:
         Args:
             video (Video): 待设置状态的视频对象
         """
-        self.manifest.set_video_status(video)
+        with self.get_cursor() as cursor:
+            self.database_manager.set_video_status(video, cursor)
 
     def update_video(self, video: Video) -> None:
         """更新 Video 的处理状态到清单。
@@ -83,7 +156,8 @@ class PipelineContext:
         Args:
             video (Video): 待更新的视频对象
         """
-        self.manifest.update_video(video)
+        with self.get_cursor() as cursor:
+            self.database_manager.update_video(video, cursor)
 
     # ========== 元数据实体操作 ==========
 
@@ -102,29 +176,16 @@ class PipelineContext:
         Returns:
             Optional[str]: 中文翻译，如果不存在则返回 None
         """
-        return self.manifest.get_entity(entity_type, original_name)
+        with self.get_cursor() as cursor:
+            return self.database_manager.get_entity(entity_type, original_name, cursor)
 
-    def update_entity(
-        self, entity_type: MetadataType, original_name: str, translated_name: str
-    ) -> None:
-        """更新元数据实体的翻译到清单。
+    # ========== 术语相关操作 ==========
 
-        将新翻译的元数据（导演、演员、类别等）保存到数据库。
-        用于缓存新翻译结果，供后续查询使用。
+    def update_terms(self, movie: Movie) -> None:
+        """更新影片的术语到数据库。
 
         Args:
-            entity_type (MetadataType): 实体类型
-            original_name (str): 日文原文
-            translated_name (str): 中文翻译
+            movie (Movie): 包含术语的电影对象
         """
-        self.manifest.update_entity(entity_type, original_name, translated_name)
-
-    # ========== 其他操作 ==========
-
-    def export_to_json(self, path: str) -> None:
-        """导出清单内容为 JSON 格式。
-
-        Args:
-            path (str): 导出文件路径
-        """
-        self.manifest.to_json(path)
+        with self.get_cursor() as cursor:
+            self.database_manager.update_terms(movie, cursor)

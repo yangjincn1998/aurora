@@ -10,7 +10,6 @@ class MetadataType(Enum):
         STUDIO: 制作商实体类型。
         DIRECTOR: 导演实体类型。
         ACTOR: 男演员实体类型。
-        ACTRESS: 女演员实体类型。
         CATEGORY: 分类实体类型。
         TITLE: 标题实体类型。
         SYNOPSIS: 简介实体类型。
@@ -20,7 +19,6 @@ class MetadataType(Enum):
     DIRECTOR = "director"
     CATEGORY = "category"
     ACTOR = "actor"
-    ACTRESS = "actress"
     TITLE = "title"
     SYNOPSIS = "synopsis"
 

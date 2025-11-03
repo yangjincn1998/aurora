@@ -17,11 +17,11 @@ class Actor:
     演员类
 
     Attributes：
-        formal_name: 演员的现在的通用艺名日语
+        current_name: 演员的现在的通用艺名日语
         all_name: 演员的所有艺名，包括别名和曾用名
     """
 
-    formal_name: str
+    current_name: str
     all_names: List[BilingualText]
 
 

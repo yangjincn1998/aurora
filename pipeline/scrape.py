@@ -8,7 +8,7 @@ from domain.subtitle import BilingualText, BilingualList
 from models.enums import TaskType, MetadataType
 from pipeline.base import MoviePipelineStage
 from pipeline.context import PipelineContext
-from services.pipeline.database_manager import SQLiteDatabaseManager
+from services.pipeline.database_manager import DatabaseManager
 from services.translation.orchestrator import TranslateOrchestrator
 from services.web_request.javbus_web_service import JavBusWebService
 from services.web_request.web_service import WebService
@@ -276,7 +276,7 @@ class ScrapeStage(MoviePipelineStage):
             "categories": (MetadataType.CATEGORY, TaskType.METADATA_CATEGORY),
             "actors": (MetadataType.ACTOR, TaskType.METADATA_ACTOR),
             "actresses": (
-                MetadataType.ACTRESS,
+                MetadataType.ACTOR,
                 TaskType.METADATA_ACTOR,
             ),  # 注意：女演员也用 METADATA_ACTOR 任务
         }
@@ -312,21 +312,3 @@ class ScrapeStage(MoviePipelineStage):
             logger.info(f"Cache hit field synopsis: {movie.metadata.synopsis}.")
 
         logger.info(f"Completed metadata scraping and translation for {movie.code}")
-
-
-if __name__ == "__main__":
-    import dotenv
-
-    dotenv.load_dotenv()
-    translator = TranslateOrchestrator.from_config_yaml("config.yml")
-
-    context = PipelineContext(
-        translator=translator,
-        manifest=SQLiteDatabaseManager(),
-    )
-    for i in range(100, 111):
-        movie = Movie(code=f"SSIS-{i}")
-        context.register_movie(movie)
-        scraper = ScrapeStage(web_servers=[JavBusWebService()])
-        scraper.execute(movie, context)
-        context.update_movie(movie)

@@ -23,7 +23,7 @@ class Pipeline:
         movie_stages: List[MoviePipelineStage],
         video_stages: List[VideoPipelineStage],
         code_extractor: CodeExtractor,
-        manifest: DatabaseManager,
+        database_manager: DatabaseManager,
         translator: TranslateOrchestrator,
         output_dir: str = os.path.join(os.getcwd(), "output"),
     ):
@@ -31,9 +31,12 @@ class Pipeline:
         self.video_stages = video_stages
         self.all_stages = movie_stages + video_stages
         self.code_extractor = code_extractor
-        # 创建 PipelineContext，封装 manifest
+        self.database_manager = database_manager
+        # 创建 PipelineContext，封装 database_manager
         self.context = PipelineContext(
-            manifest=manifest, output_dir=output_dir, translator=translator
+            database_manager=database_manager,
+            output_dir=output_dir,
+            translator=translator,
         )
 
     def _get_next_stage(
@@ -48,78 +51,88 @@ class Pipeline:
                 return stage
         return None
 
-    def _process_movie(self, movie: Movie):
-        """处理单部影片，直到所有阶段完成。"""
-        logger.info(f"开始处理影片: {movie.code}")
-
-        # 处理影片级别的阶段
-        while True:
-            next_stage = self._get_next_stage(movie)
-            if not next_stage:
-                logger.info(f"影片 {movie.code} 的所有影片级阶段处理完毕。")
-                break
-
-            logger.info(
-                f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}"
-            )
-            self.context.movie_code = movie.code
-            # 生成 Langfuse 会话 ID
-            session_id = movie.code + ":" + datetime.now().strftime("%Y-%m-%d")
-            self.context.langfuse_session_id = session_id
-            # 传递 context 给 stage
-            next_stage.execute(movie, self.context)
-            # 通过 context 更新 manifest
-            self.context.update_movie(movie)
-
-        # 规范化命名
-        for video in movie.videos:
-            video_name = (
-                movie.code + " " + movie.metadata.title.translated
-                if movie.metadata.title.translated
-                else movie.metadata.title.original
-            )
-            new_abs_path = str(
-                Path(video.absolute_path).parent / (video_name + video.suffix)
-            )
-            if video.absolute_path != new_abs_path:
-                Path(video.absolute_path).rename(new_abs_path)
-                video.absolute_path = new_abs_path
-                video.filename = video_name
-            # 同步到数据库中
-            self.context.update_video_location(video, new_abs_path, video_name)
-
-        # 处理该影片下所有视频的视频级别阶段
-        for video in movie.videos:
-            logger.info(f"开始处理视频: {video.filename}")
-            while True:
-                next_stage = self._get_next_stage(movie, video)
-                if not next_stage:
-                    logger.info(f"视频 {video.filename} 的所有视频级阶段处理完毕。")
-                    break
-
-                logger.info(
-                    f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}"
-                )
-                # 传递 context 给 stage
-                next_stage.execute(movie, video, self.context)
-                # 通过 context 更新 manifest
-                if isinstance(next_stage, CorrectStage):
-                    # todo: 只需更新术语库即可
-                    self.context.update_movie(movie)
-                self.context.update_video(video)
-
     def run(self, src_path: str):
         """扫描并处理所有影片。"""
         movies = self._scan(src_path)
         logger.info(f"扫描到 {len(movies)} 部影片待处理。")
         for movie in movies:
+            # 启动该影片的处理流程（内部包含注册和状态同步）
+            self._process_movie(movie)
+
+    def _process_movie(self, movie: Movie):
+        """处理单部影片，直到所有阶段完成。"""
+        logger.info(f"开始处理影片: {movie.code}")
+
+        # 开始事务，整部影片处理过程中使用单一数据库连接
+        cursor = self.context.begin_transaction()
+        try:
             # 注册影片和其下的视频，并从数据库同步最新状态
             self.context.register_movie(movie)
             for video in movie.videos:
                 self.context.set_video_status(video)
 
-            # 启动该影片的处理流程
-            self._process_movie(movie)
+            # 处理影片级别的阶段
+            while True:
+                next_stage = self._get_next_stage(movie)
+                if not next_stage:
+                    logger.info(f"影片 {movie.code} 的所有影片级阶段处理完毕。")
+                    break
+
+                logger.info(
+                    f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}"
+                )
+                self.context.movie_code = movie.code
+                # 生成 Langfuse 会话 ID
+                session_id = movie.code + ":" + datetime.now().strftime("%Y-%m-%d")
+                self.context.langfuse_session_id = session_id
+                # 传递 context 给 stage
+                next_stage.execute(movie, self.context)
+                # 通过 context 更新 database_manager
+                self.context.update_movie(movie)
+
+            # 规范化命名（在同一事务中）
+            for video in movie.videos:
+                video_name = (
+                    movie.code + " " + movie.metadata.title.translated
+                    if movie.metadata.title.translated
+                    else movie.metadata.title.original
+                )
+                new_abs_path = str(
+                    Path(video.absolute_path).parent / (video_name + video.suffix)
+                )
+                if video.absolute_path != new_abs_path:
+                    Path(video.absolute_path).rename(new_abs_path)
+                    video.absolute_path = new_abs_path
+                    video.filename = video_name
+                # 同步到数据库中
+                self.context.update_video_location(video, new_abs_path, video_name)
+
+            # 处理该影片下所有视频的视频级别阶段（在同一事务中）
+            for video in movie.videos:
+                logger.info(f"开始处理视频: {video.filename}")
+                while True:
+                    next_stage = self._get_next_stage(movie, video)
+                    if not next_stage:
+                        logger.info(f"视频 {video.filename} 的所有视频级阶段处理完毕。")
+                        break
+
+                    logger.info(
+                        f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}"
+                    )
+                    # 传递 context 给 stage
+                    next_stage.execute(movie, video, self.context)
+                    # 通过 context 更新 database_manager
+                    if isinstance(next_stage, CorrectStage):
+                        self.context.update_terms(movie)
+                    self.context.update_video(video)
+
+            # 提交事务
+            self.context.commit_transaction()
+        except Exception as e:
+            # 发生错误时回滚事务
+            logger.error(f"处理影片 {movie.code} 时发生错误: {e}")
+            self.context.rollback_transaction()
+            raise
 
     def _scan(self, src_dir: str) -> List[Movie]:
         """

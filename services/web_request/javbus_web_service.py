@@ -3,7 +3,7 @@ from logging import getLogger
 import requests
 from bs4 import BeautifulSoup
 
-from domain.movie import Movie, Metadata, BilingualText
+from domain.movie import Movie, Metadata, BilingualText, Actor
 from services.web_request.web_service import WebService
 from utils.singleton import singleton
 
@@ -108,7 +108,6 @@ class JavBusWebService(WebService):
             logger.error(f"请求番号 {av_code} 发生未知网络错误: {e}")
             raise
 
-    # todo: 更新 fetch_metadata 以适应新的数据库表结构
     def fetch_metadata(self, av_code: str) -> Metadata:
         """
         根据av番号检索并解析影片元数据。
@@ -135,10 +134,10 @@ class JavBusWebService(WebService):
             html_content = self.request(av_code)
 
             # 解析HTML
-            movie = self._parse_html(html_content, av_code)
+            metadata = self._parse_html(html_content, av_code)
 
             logger.info(f"成功解析番号 {av_code} 的元数据")
-            return movie.metadata
+            return metadata
 
         except Exception as e:
             logger.error(f"获取番号 {av_code} 元数据失败: {e}")
@@ -191,7 +190,7 @@ class JavBusWebService(WebService):
             logger.error(f"番号 {av_code} 验证失败（未知错误）: {e}")
             return False
 
-    def _parse_html(self, html_content: str, code: str) -> Movie:
+    def _parse_html(self, html_content: str, code: str) -> Metadata:
         """
         解析HTML内容并提取元数据。
 
@@ -218,12 +217,12 @@ class JavBusWebService(WebService):
         container = soup.find("div", class_="container")
         if not container:
             logger.warning("未找到 container div")
-            return Movie(code=code, metadata=metadata)
+            return metadata
 
         info_div = container.find("div", class_="info")
         if not info_div:
             logger.warning("未找到 info div")
-            return Movie(code=code, metadata=metadata)
+            return metadata
 
         # 提取信息字段
         for p_tag in info_div.find_all("p"):
@@ -295,6 +294,8 @@ class JavBusWebService(WebService):
 
         # 提取演员
         # 演员在包含class="star-show"的p标签后面的p标签中
+        from utils.actor_parser import parse_actor_string
+
         for i, p_tag in enumerate(all_p_tags):
             # 查找包含"演員"或"star-show"的header标签
             if p_tag.get("class") == ["star-show"] or (
@@ -310,11 +311,25 @@ class JavBusWebService(WebService):
                         if actress_link:
                             actress_name = actress_link.text.strip()
                             if actress_name:
-                                actresses.append(BilingualText(original=actress_name))
-                                logger.debug(f"提取演员: {actress_name}")
+                                # 使用新的Actor解析器
+                                actor = parse_actor_string(actress_name)
+                                if actor:
+                                    actresses.append(actor)
+                                    logger.debug(
+                                        f"提取演员: {actor.current_name} (别名: {[name.original for name in actor.all_names[1:]]})"
+                                    )
+                                else:
+                                    # 如果解析失败，创建一个简单的Actor对象
+                                    simple_actor = Actor(
+                                        current_name=actress_name,
+                                        all_names=[
+                                            BilingualText(original=actress_name)
+                                        ],
+                                    )
+                                    actresses.append(simple_actor)
+                                    logger.debug(f"提取演员(简单): {actress_name}")
                     if actresses:
                         metadata.actresses = actresses
                 break
 
-        movie = Movie(code=code, metadata=metadata)
-        return movie
+        return metadata
