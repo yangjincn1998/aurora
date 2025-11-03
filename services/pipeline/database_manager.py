@@ -165,7 +165,7 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 影片表 - 只保留核心字段
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movie
+                       CREATE TABLE IF NOT EXISTS movies
                        (
                            code
                            TEXT
@@ -191,14 +191,14 @@ class SQLiteDatabaseManager(DatabaseManager):
                            KEY
                        (
                            director_ja
-                       ) REFERENCES director
+                       ) REFERENCES directors
                        (
                            name_ja
                        ),
                            Foreign KEY
                        (
                            studio_ja
-                       ) REFERENCES studio
+                       ) REFERENCES studios
                        (
                            name_ja
                        )
@@ -209,7 +209,7 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 视频文件表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS video
+                       CREATE TABLE IF NOT EXISTS videos
                        (
                            sha256
                            TEXT
@@ -254,45 +254,12 @@ class SQLiteDatabaseManager(DatabaseManager):
             """
         )
 
-        # 影片-视频关系表
-        cursor.execute(
-            """
-                       CREATE TABLE IF NOT EXISTS has_a
-                       (
-                           movie_code
-                           TEXT,
-                           video_sha256
-                           TEXT,
-                           PRIMARY
-                           KEY
-                       (
-                           movie_code,
-                           video_sha256
-                       ),
-                           FOREIGN KEY
-                       (
-                           movie_code
-                       ) REFERENCES movie
-                       (
-                           code
-                       ),
-                           FOREIGN KEY
-                       (
-                           video_sha256
-                       ) REFERENCES video
-                       (
-                           sha256
-                       )
-                           )
-            """
-        )
-
         # ========== 元数据实体表 ==========
 
         # 导演表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS director
+                       CREATE TABLE IF NOT EXISTS directors
                        (
                            name_ja
                            TEXT
@@ -307,7 +274,7 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 制作商表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS studio
+                       CREATE TABLE IF NOT EXISTS studios
                        (
                            name_ja
                            TEXT
@@ -322,7 +289,7 @@ class SQLiteDatabaseManager(DatabaseManager):
         # 类别表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS category
+                       CREATE TABLE IF NOT EXISTS categories
                        (
                            name_ja
                            TEXT
@@ -334,42 +301,74 @@ class SQLiteDatabaseManager(DatabaseManager):
             """
         )
 
-        # 演员表（男）
+        # 演员名表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS actor
+                       CREATE TABLE IF NOT EXISTS actor_names
                        (
                            name_ja
                            TEXT
                            Primary
                            Key,
                            name_zh
-                           TEXT
+                           TEXT,
+                           actor_id
+                           TEXT,
+                           FOREIGN KEY (actor_id) REFERENCES actors (actor_id) 
                        )
             """
         )
 
-        # 演员表（女）
+        # 演员表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS actress
-                       (
-                           name_ja
-                           TEXT
-                           Primary
-                           Key,
-                           name_zh
-                           TEXT
-                       )
+              create table if not exists actors(
+                actor_id text primary key,
+                current_name text,
+                gender text
+              )
             """
         )
 
         # ========== 关系表 ==========
 
+        # 影片-视频关系表
+        cursor.execute(
+            """
+                       CREATE TABLE IF NOT EXISTS movie_videos
+                       (
+                           movie_code
+                           TEXT,
+                           video_sha256
+                           TEXT,
+                           PRIMARY
+                           KEY
+                       (
+                           movie_code,
+                           video_sha256
+                       ),
+                           FOREIGN KEY
+                       (
+                           movie_code
+                       ) REFERENCES movies
+                       (
+                           code
+                       ),
+                           FOREIGN KEY
+                       (
+                           video_sha256
+                       ) REFERENCES videos
+                       (
+                           sha256
+                       )
+                           )
+            """
+        )
+
         # 影片-类别关系表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movie_category
+                       CREATE TABLE IF NOT EXISTS movie_categories
                        (
                            movie_code
                            TEXT,
@@ -384,14 +383,14 @@ class SQLiteDatabaseManager(DatabaseManager):
                            FOREIGN KEY
                        (
                            movie_code
-                       ) REFERENCES movie
+                       ) REFERENCES movies
                        (
                            code
                        ),
                            FOREIGN KEY
                        (
                            category_ja
-                       ) REFERENCES category
+                       ) REFERENCES categories
                        (
                            name_ja
                        )
@@ -399,70 +398,16 @@ class SQLiteDatabaseManager(DatabaseManager):
             """
         )
 
-        # 影片-男演员关系表
         cursor.execute(
             """
-                       CREATE TABLE IF NOT EXISTS movie_actor
-                       (
-                           movie_code
-                           TEXT,
-                           actor_ja
-                           TEXT,
-                           PRIMARY
-                           KEY
-                       (
-                           movie_code,
-                           actor_ja
-                       ),
-                           FOREIGN KEY
-                       (
-                           movie_code
-                       ) REFERENCES movie
-                       (
-                           code
-                       ),
-                           FOREIGN KEY
-                       (
-                           actor_ja
-                       ) REFERENCES actor
-                       (
-                           name_ja
-                       )
-                           )
-            """
+          create table if not exists act_in(
+            actor_id text,
+            movie_code text,
+            primary key (actor_id, movie_code),
+            foreign key (actor_id) references actors (actor_id),
+            foreign key (movie_code) references movies (code)
         )
-
-        # 影片-女演员关系表
-        cursor.execute(
-            """
-                       CREATE TABLE IF NOT EXISTS movie_actress
-                       (
-                           movie_code
-                           TEXT,
-                           actress_ja
-                           TEXT,
-                           PRIMARY
-                           KEY
-                       (
-                           movie_code,
-                           actress_ja
-                       ),
-                           FOREIGN KEY
-                       (
-                           movie_code
-                       ) REFERENCES movie
-                       (
-                           code
-                       ),
-                           FOREIGN KEY
-                       (
-                           actress_ja
-                       ) REFERENCES actress
-                       (
-                           name_ja
-                       )
-                           )
-            """
+        """
         )
         conn.commit()
         conn.close()
@@ -486,7 +431,7 @@ class SQLiteDatabaseManager(DatabaseManager):
             cursor.execute(
                 """
                            SELECT title_ja, title_zh, release_date, director_ja, studio_ja, synopsis_ja, synopsis_zh
-                           FROM movie
+                           FROM movies
                            WHERE code = ?
                 """,
                 (movie_code,),
@@ -524,7 +469,7 @@ class SQLiteDatabaseManager(DatabaseManager):
             # 导演
             if movie_row["director_ja"]:
                 cursor.execute(
-                    "SELECT name_zh FROM director WHERE name_ja = ?",
+                    "SELECT name_zh FROM directors WHERE name_ja = ?",
                     (movie_row["director_ja"],),
                 )
                 director_row = cursor.fetchone()
@@ -536,7 +481,7 @@ class SQLiteDatabaseManager(DatabaseManager):
             # 制作商
             if movie_row["studio_ja"]:
                 cursor.execute(
-                    "SELECT name_zh FROM studio WHERE name_ja = ?",
+                    "SELECT name_zh FROM studios WHERE name_ja = ?",
                     (movie_row["studio_ja"],),
                 )
                 studio_row = cursor.fetchone()
@@ -558,8 +503,8 @@ class SQLiteDatabaseManager(DatabaseManager):
             cursor.execute(
                 """
                            SELECT c.name_ja, c.name_zh
-                           FROM movie_category mc
-                                    JOIN category c ON mc.category_ja = c.name_ja
+                           FROM movie_categories mc
+                                    JOIN categories c ON mc.category_ja = c.name_ja
                            WHERE mc.movie_code = ?
                 """,
                 (movie_code,),
@@ -575,8 +520,8 @@ class SQLiteDatabaseManager(DatabaseManager):
             cursor.execute(
                 """
                            SELECT a.name_ja, a.name_zh
-                           FROM movie_actor ma
-                                    JOIN actor a ON ma.actor_ja = a.name_ja
+                           FROM movie_actors ma
+                                    JOIN actors a ON ma.actor_ja = a.name_ja
                            WHERE ma.movie_code = ?
                 """,
                 (movie_code,),
@@ -592,8 +537,8 @@ class SQLiteDatabaseManager(DatabaseManager):
             cursor.execute(
                 """
                            SELECT a.name_ja, a.name_zh
-                           FROM movie_actress ma
-                                    JOIN actress a ON ma.actress_ja = a.name_ja
+                           FROM movie_actresses ma
+                                    JOIN actresses a ON ma.actress_ja = a.name_ja
                            WHERE ma.movie_code = ?
                 """,
                 (movie_code,),
@@ -716,7 +661,7 @@ class SQLiteDatabaseManager(DatabaseManager):
             if metadata.director:
                 self._get_or_create_entity(
                     cursor,
-                    "director",
+                    "directors",
                     metadata.director.original,
                     metadata.director.translated,
                 )
@@ -725,7 +670,7 @@ class SQLiteDatabaseManager(DatabaseManager):
             if metadata.studio:
                 self._get_or_create_entity(
                     cursor,
-                    "studio",
+                    "studios",
                     metadata.studio.original,
                     metadata.studio.translated,
                 )
@@ -748,7 +693,7 @@ class SQLiteDatabaseManager(DatabaseManager):
                     )
 
                     self._get_or_create_entity(
-                        cursor, "category", category_ja, category_zh
+                        cursor, "categories", category_ja, category_zh
                     )
                     cursor.execute(
                         """
@@ -774,7 +719,7 @@ class SQLiteDatabaseManager(DatabaseManager):
                         actor.translated if hasattr(actor, "translated") else None
                     )
 
-                    self._get_or_create_entity(cursor, "actor", actor_ja, actor_zh)
+                    self._get_or_create_entity(cursor, "actors", actor_ja, actor_zh)
                     cursor.execute(
                         """
                                    INSERT
@@ -802,7 +747,7 @@ class SQLiteDatabaseManager(DatabaseManager):
                     )
 
                     self._get_or_create_entity(
-                        cursor, "actress", actress_ja, actress_zh
+                        cursor, "actresses", actress_ja, actress_zh
                     )
                     cursor.execute(
                         """
@@ -869,11 +814,11 @@ class SQLiteDatabaseManager(DatabaseManager):
             translated_name (str): 中文翻译
         """
         table_map = {
-            MetadataType.DIRECTOR: "director",
-            MetadataType.ACTOR: "actor_name",
-            MetadataType.ACTRESS: "actress_name",
-            MetadataType.STUDIO: "studio",
-            MetadataType.CATEGORY: "category",
+            MetadataType.DIRECTOR: "directors",
+            MetadataType.ACTOR: "actors",
+            MetadataType.ACTRESS: "actresses",
+            MetadataType.STUDIO: "studios",
+            MetadataType.CATEGORY: "categories",
         }
 
         table_name = table_map.get(entity_type)
@@ -928,11 +873,11 @@ class SQLiteDatabaseManager(DatabaseManager):
             else:
                 # 其他实体从对应表查询
                 table_map = {
-                    MetadataType.DIRECTOR: "director",
-                    MetadataType.ACTOR: "actor_name",
-                    MetadataType.ACTRESS: "actress_name",
-                    MetadataType.CATEGORY: "category",
-                    MetadataType.STUDIO: "studio",
+                    MetadataType.DIRECTOR: "directors",
+                    MetadataType.ACTOR: "actors",
+                    MetadataType.ACTRESS: "actresses",
+                    MetadataType.CATEGORY: "categories",
+                    MetadataType.STUDIO: "studios",
                 }
                 table_name = table_map.get(entity_type)
                 if not table_name:
