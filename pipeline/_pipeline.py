@@ -9,7 +9,7 @@ from pipeline.base import MoviePipelineStage, VideoPipelineStage, PipelineStage
 from pipeline.context import PipelineContext
 from pipeline.correct import CorrectStage
 from services.code_extract.extractor import CodeExtractor
-from services.pipeline.manifest import Manifest
+from services.pipeline.database_manager import DatabaseManager
 from services.translation.orchestrator import TranslateOrchestrator
 from utils.file_utils import calculate_partial_sha256
 from utils.logger import get_logger
@@ -23,7 +23,7 @@ class Pipeline:
         movie_stages: List[MoviePipelineStage],
         video_stages: List[VideoPipelineStage],
         code_extractor: CodeExtractor,
-        manifest: Manifest,
+        manifest: DatabaseManager,
         translator: TranslateOrchestrator,
         output_dir: str = os.path.join(os.getcwd(), "output"),
     ):

@@ -12,7 +12,7 @@ from pipeline.transcribe_audio import TranscribeAudioStage
 from pipeline.translate import TranslateStage
 from services.code_extract.extractor import CodeExtractor
 from services.denoise.denoiser import Denoiser
-from services.pipeline.manifest import SQLiteManifest
+from services.pipeline.database_manager import SQLiteDatabaseManager
 from services.transcription.transcription_service import TranscriptionService
 from services.translation.orchestrator import TranslateOrchestrator
 from services.translation.provider import OpenaiProvider
@@ -57,7 +57,7 @@ pipeline = Pipeline(
         BilingualSubtitleStage(),
     ],
     CodeExtractor([JavBusWebService()]),
-    SQLiteManifest(),
+    SQLiteDatabaseManager(),
     translator,
 )
 

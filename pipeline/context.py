@@ -9,7 +9,7 @@ from typing import Optional
 
 from domain.movie import Movie, Video, Metadata
 from models.enums import MetadataType
-from services.pipeline.manifest import Manifest
+from services.pipeline.database_manager import DatabaseManager
 from services.translation.orchestrator import TranslateOrchestrator
 
 
@@ -31,7 +31,7 @@ class PipelineContext:
         langfuse_session_id (str|None): Langfuse 会话 ID，用于跟踪翻译请求
     """
 
-    manifest: Manifest
+    manifest: DatabaseManager
     translator: TranslateOrchestrator
     movie_code: str = ""
     langfuse_session_id: str | None = None

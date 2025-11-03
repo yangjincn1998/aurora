@@ -9,9 +9,9 @@ from domain.movie import Video, Movie, Metadata
 from models.enums import PiplinePhase, StageStatus, MetadataType
 
 
-class Manifest(ABC):
+class DatabaseManager(ABC):
     """
-    清单文件抽象基类。
+    数据库管理抽象基类。
     Attributes:
     """
 
@@ -110,9 +110,9 @@ class Manifest(ABC):
         pass
 
 
-class SQLiteManifest(Manifest):
+class SQLiteDatabaseManager(DatabaseManager):
     """
-    基于SQLite的清单文件实现类。
+    基于SQLite的数据库管理实现类。
     Attributes:
         video_phases (List[PiplinePhase]): 支持的视频级文件流水线阶段列表
         db_path (str): SQLite数据库文件路径

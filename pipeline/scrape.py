@@ -8,7 +8,7 @@ from domain.subtitle import BilingualText, BilingualList
 from models.enums import TaskType, MetadataType
 from pipeline.base import MoviePipelineStage
 from pipeline.context import PipelineContext
-from services.pipeline.manifest import SQLiteManifest
+from services.pipeline.database_manager import SQLiteDatabaseManager
 from services.translation.orchestrator import TranslateOrchestrator
 from services.web_request.javbus_web_service import JavBusWebService
 from services.web_request.web_service import WebService
@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     context = PipelineContext(
         translator=translator,
-        manifest=SQLiteManifest(),
+        manifest=SQLiteDatabaseManager(),
     )
     for i in range(100, 111):
         movie = Movie(code=f"SSIS-{i}")
