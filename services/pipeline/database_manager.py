@@ -290,6 +290,7 @@ class DatabaseManager:
         Returns:
             Metadata | None: 元数据对象，如果不存在则返回 None
         """
+        conn = None
         internal_cursor = False
         if cursor is None:
             conn = sqlite3.connect(self.db_path)
@@ -444,7 +445,7 @@ class DatabaseManager:
             return metadata
 
         finally:
-            if internal_cursor:
+            if internal_cursor and conn:
                 conn.close()
 
     def register_movie(self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None):
@@ -485,6 +486,101 @@ class DatabaseManager:
                 pass
             raise
 
+    @staticmethod
+    def _extract_movie_metadata_fields(movie: Movie) -> dict:
+        """
+        从Movie对象中提取元数据字段。
+
+        Args:
+            movie (Movie): Movie对象
+
+        Returns:
+            dict: 包含所有元数据字段的字典
+        """
+        metadata = movie.metadata
+
+        return {
+            'title_ja': metadata.title.original if metadata and metadata.title else None,
+            'title_zh': metadata.title.translated if metadata and metadata.title else None,
+            'synopsis_ja': metadata.synopsis.original if metadata and metadata.synopsis else None,
+            'synopsis_zh': metadata.synopsis.translated if metadata and metadata.synopsis else None,
+            'director_ja': metadata.director.original if metadata and metadata.director else None,
+            'studio_ja': metadata.studio.original if metadata and metadata.studio else None,
+            'release_date': metadata.release_date if metadata else None,
+            'metadata': metadata
+        }
+
+    def _update_movie_relations(self, movie: Movie, cursor: sqlite3.Cursor):
+        """
+        更新影片的所有关联关系（导演、制作商、类别、演员、术语）。
+
+        Args:
+            movie (Movie): Movie对象
+            cursor (sqlite3.Cursor): 数据库游标
+        """
+        metadata = movie.metadata
+
+        # 如果没有metadata，直接返回
+        if not metadata:
+            return
+
+        # 1. 处理导演
+        if metadata.director:
+            self._get_or_create_entity(
+                cursor,
+                "directors",
+                metadata.director.original,
+                metadata.director.translated,
+            )
+
+        # 2. 处理制作商
+        if metadata.studio:
+            self._get_or_create_entity(
+                cursor,
+                "studios",
+                metadata.studio.original,
+                metadata.studio.translated,
+            )
+
+        # 3. 处理类别
+        if metadata.categories:
+            # 先清除旧的关联
+            cursor.execute(
+                "delete from movie_categories where movie_code = ?", (movie.code,)
+            )
+            # 添加新的关联
+            for category in metadata.categories:
+                category_ja = (
+                    category.original
+                    if hasattr(category, "original")
+                    else str(category)
+                )
+                category_zh = (
+                    category.translated if hasattr(category, "translated") else None
+                )
+
+                self._get_or_create_entity(
+                    cursor, "categories", category_ja, category_zh
+                )
+                cursor.execute(
+                    """
+                               INSERT
+                               OR IGNORE INTO movie_categories (movie_code, category_ja)
+                               VALUES (?, ?)
+                    """,
+                    (movie.code, category_ja),
+                )
+
+        # 4. 处理男演员和女演员
+        if metadata.actors:
+            self._handle_actors(movie, "male", cursor)
+        if metadata.actresses:
+            self._handle_actors(movie, "female", cursor)
+
+        # 5. 处理术语
+        if movie.terms:
+            self.update_terms(movie, cursor)
+
     def update_movie(self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None):
         """
         更新影片的元数据信息。
@@ -498,125 +594,100 @@ class DatabaseManager:
             movie (Movie): 包含完整元数据的Movie对象
             cursor (Optional[sqlite3.Cursor]): 数据库游标，如果为None则内部创建
         """
-        internal_cursor = False
-        if cursor is None:
-            cursor = self.get_cursor(commit=True).__enter__()
-            internal_cursor = True
+        with self._get_cursor_context(cursor) as (internal_cursor, cursor):
+            # 提取元数据字段
+            fields = self._extract_movie_metadata_fields(movie)
 
-        try:
-            metadata = movie.metadata
-
-            # 准备要更新的字段
-            title_ja = metadata.title.original if metadata and metadata.title else None
-            title_zh = (
-                metadata.title.translated if metadata and metadata.title else None
-            )
-            synopsis_ja = (
-                metadata.synopsis.original if metadata and metadata.synopsis else None
-            )
-            synopsis_zh = (
-                metadata.synopsis.translated if metadata and metadata.synopsis else None
-            )
-            director_ja = (
-                metadata.director.original if metadata and metadata.director else None
-            )
-            studio_ja = (
-                metadata.studio.original if metadata and metadata.studio else None
-            )
-            release_date = metadata.release_date if metadata else None
-
-            # 1. 更新movies表的核心字段（修复WHERE子句）
+            # 1. 更新movies表的核心字段
             cursor.execute(
                 """
-                           UPDATE movies
-                           SET title_ja     = ?,
+                           update movies
+                           set title_ja     = ?,
                                title_zh     = ?,
                                synopsis_ja  = ?,
                                synopsis_zh  = ?,
                                director_ja  = ?,
                                studio_ja    = ?,
                                release_date = ?
-                           WHERE code = ?
+                           where code = ?
                            """,
                 (
-                    title_ja,
-                    title_zh,
-                    synopsis_ja,
-                    synopsis_zh,
-                    director_ja,
-                    studio_ja,
-                    release_date,
+                    fields['title_ja'],
+                    fields['title_zh'],
+                    fields['synopsis_ja'],
+                    fields['synopsis_zh'],
+                    fields['director_ja'],
+                    fields['studio_ja'],
+                    fields['release_date'],
                     movie.code,
                 ),
             )
 
-            # 如果没有metadata，只更新terms后就返回
-            if not metadata:
-                return
+            # 2. 更新关联关系
+            self._update_movie_relations(movie, cursor)
 
-            # 2. 处理导演
-            if metadata.director:
-                self._get_or_create_entity(
-                    cursor,
-                    "directors",
-                    metadata.director.original,
-                    metadata.director.translated,
-                )
+    def update_movie_for_test(self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None):
+        """
+        测试用的影片更新方法，支持插入新记录或覆盖已存在的记录。
 
-            # 3. 处理制作商
-            if metadata.studio:
-                self._get_or_create_entity(
-                    cursor,
-                    "studios",
-                    metadata.studio.original,
-                    metadata.studio.translated,
-                )
+        与普通的 update_movie 不同，此方法使用 INSERT OR REPLACE 语句，
+        当 movies 表中没有对应 code 的记录时会插入新记录，
+        如果已存在记录则会覆盖原有的记录。
 
-            # 4. 处理类别
-            if metadata.categories:
-                # 先清除旧的关联（修复表名）
-                cursor.execute(
-                    "delete from movie_categories where movie_code = ?", (movie.code,)
-                )
-                # 添加新的关联
-                for category in metadata.categories:
-                    category_ja = (
-                        category.original
-                        if hasattr(category, "original")
-                        else str(category)
-                    )
-                    category_zh = (
-                        category.translated if hasattr(category, "translated") else None
-                    )
+        Args:
+            movie (Movie): 包含完整元数据的Movie对象
+            cursor (Optional[sqlite3.Cursor]): 数据库游标，如果为None则内部创建
+        """
+        with self._get_cursor_context(cursor) as (internal_cursor, cursor):
+            # 提取元数据字段
+            fields = self._extract_movie_metadata_fields(movie)
 
-                    self._get_or_create_entity(
-                        cursor, "categories", category_ja, category_zh
-                    )
-                    cursor.execute(
-                        """
-                                   INSERT
-                                   OR IGNORE INTO movie_categories (movie_code, category_ja)
-                                   VALUES (?, ?)
-                        """,
-                        (movie.code, category_ja),
-                    )
+            # 1. 使用 INSERT OR REPLACE 插入或覆盖 movies 表的记录
+            cursor.execute(
+                """
+                insert or replace into movies
+                (code, title_ja, title_zh, synopsis_ja, synopsis_zh, director_ja, studio_ja, release_date)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    movie.code,
+                    fields['title_ja'],
+                    fields['title_zh'],
+                    fields['synopsis_ja'],
+                    fields['synopsis_zh'],
+                    fields['director_ja'],
+                    fields['studio_ja'],
+                    fields['release_date'],
+                ),
+            )
 
-            # 5. 处理男演员和女演员
-            if metadata.actors:
-                self._handle_actors(movie, "male", cursor)
-            if metadata.actresses:
-                self._handle_actors(movie, "female", cursor)
+            # 2. 更新关联关系
+            self._update_movie_relations(movie, cursor)
 
-            # 6. 处理术语
-            if movie.terms:
-                self.update_terms(movie, cursor)
+    @contextmanager
+    def _get_cursor_context(self, cursor: Optional[sqlite3.Cursor] = None):
+        """
+        获取数据库游标的上下文管理器，支持外部传入的游标。
 
+        Args:
+            cursor (Optional[sqlite3.Cursor]): 外部传入的游标，如果为None则内部创建
+
+        Yields:
+            tuple: (internal_cursor, cursor) - internal_cursor表示是否为内部创建的游标
+        """
+        internal_cursor = cursor is None
+        if internal_cursor:
+            cursor = self.get_cursor(commit=True).__enter__()
+
+        try:
+            yield internal_cursor, cursor
         finally:
-            if internal_cursor:
-                pass  # 上下文管理器会自动处理连接
+            # 如果是内部创建的游标，上下文管理器会自动处理连接
+            pass
 
+    @staticmethod
     def _get_or_create_entity(
-        self, cursor: sqlite3.Cursor, table_name: str, name_ja: str, name_zh: str = None
+        cursor: sqlite3.Cursor, table_name: str, name_ja: str, name_zh: str = None
     ):
         """
         获取或创建元数据实体（导演、制作商、类别、演员名等）。
@@ -638,9 +709,9 @@ class DatabaseManager:
         if name_zh:
             cursor.execute(
                 f"""
-                           INSERT INTO {table_name} (name_ja, name_zh)
-                           VALUES (?, ?)
-                           ON CONFLICT(name_ja) DO UPDATE SET name_zh = excluded.name_zh
+                           insert into {table_name} (name_ja, name_zh)
+                           values (?, ?)
+                           on conflict(name_ja) do update set name_zh = excluded.name_zh
                            """,
                 (name_ja, name_zh),
             )
@@ -648,8 +719,8 @@ class DatabaseManager:
             # 如果没有提供name_zh，只在不存在时插入
             cursor.execute(
                 f"""
-                           INSERT OR IGNORE INTO {table_name} (name_ja, name_zh)
-                           VALUES (?, NULL)
+                           insert or ignore into {table_name} (name_ja, name_zh)
+                           values (?, null)
                            """,
                 (name_ja,),
             )
@@ -678,6 +749,7 @@ class DatabaseManager:
         if not original_name:
             return None
 
+        conn = None
         internal_cursor = False
         if cursor is None:
             conn = sqlite3.connect(self.db_path)
@@ -688,13 +760,13 @@ class DatabaseManager:
             # TITLE和SYNOPSIS从movies表查询（修复表名）
             if entity_type == MetadataType.TITLE:
                 cursor.execute(
-                    "SELECT title_zh FROM movies WHERE title_ja = ?", (original_name,)
+                    "select title_zh from movies where title_ja = ?", (original_name,)
                 )
                 row = cursor.fetchone()
                 return row[0] if row and row[0] else None
             elif entity_type == MetadataType.SYNOPSIS:
                 cursor.execute(
-                    "SELECT synopsis_zh FROM movies WHERE synopsis_ja = ?",
+                    "select synopsis_zh from movies where synopsis_ja = ?",
                     (original_name,),
                 )
                 row = cursor.fetchone()
@@ -712,13 +784,13 @@ class DatabaseManager:
                     return None
 
                 cursor.execute(
-                    f"SELECT name_zh FROM {table_name} WHERE name_ja = ?",
+                    f"select name_zh from {table_name} where name_ja = ?",
                     (original_name,),
                 )
                 row = cursor.fetchone()
                 return row[0] if row and row[0] else None
         finally:
-            if internal_cursor:
+            if internal_cursor and conn:
                 conn.close()
 
     def get_movie(
@@ -734,6 +806,7 @@ class DatabaseManager:
         Returns:
             Movie | None: Movie对象，如果不存在则返回None
         """
+        conn = None
         internal_cursor = False
         if cursor is None:
             conn = sqlite3.connect(self.db_path)
@@ -743,7 +816,7 @@ class DatabaseManager:
 
         try:
             # 1. 查询影片是否存在（修复表名）
-            cursor.execute("SELECT * FROM movies WHERE code = ?", (movie_code,))
+            cursor.execute("select * from movies where code = ?", (movie_code,))
             movie_row = cursor.fetchone()
 
             if not movie_row:
@@ -775,10 +848,10 @@ class DatabaseManager:
             # 5. 查询并加载关联的视频（修复表名）
             cursor.execute(
                 """
-                           SELECT v.sha256
-                           FROM movie_videos mv
-                                    JOIN videos v ON mv.video_sha256 = v.sha256
-                           WHERE mv.movie_code = ?
+                           select v.sha256
+                           from movie_videos mv
+                                    join videos v on mv.video_sha256 = v.sha256
+                           where mv.movie_code = ?
                 """,
                 (movie_code,),
             )
@@ -792,7 +865,7 @@ class DatabaseManager:
             return movie
 
         finally:
-            if internal_cursor:
+            if internal_cursor and conn:
                 conn.close()
 
     def get_video(
@@ -808,6 +881,7 @@ class DatabaseManager:
         Returns:
             Video | None: Video对象，如果不存在则返回None
         """
+        conn = None
         internal_cursor = False
         if cursor is None:
             conn = sqlite3.connect(self.db_path)
@@ -817,7 +891,7 @@ class DatabaseManager:
 
         try:
             # 查询视频基本信息（修复表名）
-            cursor.execute("SELECT * FROM videos WHERE sha256 = ?", (sha256,))
+            cursor.execute("select * from videos where sha256 = ?", (sha256,))
             row = cursor.fetchone()
 
             if not row:
@@ -856,7 +930,7 @@ class DatabaseManager:
             return video
 
         finally:
-            if internal_cursor:
+            if internal_cursor and conn:
                 conn.close()
 
     def update_video_location(
@@ -875,17 +949,17 @@ class DatabaseManager:
             # 修复表名
             cursor.execute(
                 """
-                           UPDATE videos
-                           SET absolute_path = ?
-                           WHERE sha256 = ?
+                           update videos
+                           set absolute_path = ?
+                           where sha256 = ?
                 """,
                 (new_absolute_path, video.sha256),
             )
             cursor.execute(
                 """
-                           UPDATE videos
-                           SET filename = ?
-                           WHERE sha256 = ?
+                           update videos
+                           set filename = ?
+                           where sha256 = ?
                 """,
                 (filename, video.sha256),
             )
@@ -918,7 +992,7 @@ class DatabaseManager:
                 return  # Nothing to update
 
             # 修复表名
-            sql = f"UPDATE videos SET {', '.join(set_clauses)} WHERE sha256 = ?"
+            sql = f"update videos set {', '.join(set_clauses)} where sha256 = ?"
             params.append(video.sha256)
 
             cursor.execute(sql, tuple(params))
@@ -927,6 +1001,7 @@ class DatabaseManager:
                 pass  # 上下文管理器会自动处理连接
 
     def set_video_status(self, video: Video, cursor: Optional[sqlite3.Cursor] = None):
+        conn = None
         internal_cursor = False
         if cursor is None:
             conn = sqlite3.connect(self.db_path)
@@ -936,7 +1011,7 @@ class DatabaseManager:
 
         try:
             # 修复表名
-            cursor.execute("SELECT * FROM videos WHERE sha256 = ?", (video.sha256,))
+            cursor.execute("select * from videos where sha256 = ?", (video.sha256,))
             row = cursor.fetchone()
             if not row:
                 return
@@ -984,10 +1059,11 @@ class DatabaseManager:
                             del video.by_products[subsequent_phase]
                     break
         finally:
-            if internal_cursor:
+            if internal_cursor and conn:
                 conn.close()
 
-    def _get_or_create_actor_id(self, actor: Actor, cursor: sqlite3.Cursor) -> str:
+    @staticmethod
+    def _get_or_create_actor_id(actor: Actor, cursor: sqlite3.Cursor) -> str:
         """
         在数据库中寻找演员ID，使用UUID
 
@@ -1021,7 +1097,7 @@ class DatabaseManager:
         )
 
         # 清除旧的关联
-        cursor.execute("DELETE FROM act_in WHERE movie_code = ?", (movie.code,))
+        cursor.execute("delete from act_in where movie_code = ?", (movie.code,))
 
         for actor in actors_list:
             actor_id = self._get_or_create_actor_id(actor, cursor)
