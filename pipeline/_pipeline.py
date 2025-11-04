@@ -64,7 +64,7 @@ class Pipeline:
         logger.info(f"开始处理影片: {movie.code}")
 
         # 开始事务，整部影片处理过程中使用单一数据库连接
-        cursor = self.context.begin_transaction()
+        self.context.begin_transaction()
         try:
             # 注册影片和其下的视频，并从数据库同步最新状态
             self.context.register_movie(movie)

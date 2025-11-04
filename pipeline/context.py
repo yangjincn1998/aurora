@@ -20,13 +20,13 @@ class PipelineContext:
 
     封装流水线执行过程中各个 Stage 需要访问的共享资源。
     通过上下文对象模式，实现：
-    1. Manifest 只由 Pipeline 管理，避免多层级持有
+    1. database manager 只由 Pipeline 管理，避免多层级持有
     2. Stage 通过统一接口访问共享资源
     3. 保持 Stage 的功能完整性（如写入数据库）
 
     Attributes:
         movie_code(str): 影片代码
-        manifest (Manifest): 清单文件管理对象，唯一实例
+        database_manager (DatabaseManager): 清单文件管理对象，唯一实例
         output_dir (str): 副产品输出路径目录，唯一实例
         translator (TranslateOrchestrator): 所以翻译活动要用到的翻译编排器
         langfuse_session_id (str|None): Langfuse 会话 ID，用于跟踪翻译请求

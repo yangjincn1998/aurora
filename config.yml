@@ -7,29 +7,29 @@ translate_orchestrator:
     director:
       providers:
         - service: openai
-          model: "z-ai/glm-4.6"
-          api_key: "ENV_OPENROUTER_API_KEY"
-          base_url: "ENV_OPENROUTER_BASE_URL"
+          model: "deepseek-chat"
+          api_key: "ENV_DEEPSEEK_API_KEY"
+          base_url: "ENV_DEEPSEEK_BASE_URL"
       stream: True # 对于 strategies 下所有的字段，stream属性设置为可选，如果有，优先级高于 streaming_models的设置
       temperature: 0.7 #没有则设置为 1
     actor:
       providers:
         - service: openai
-          model: "z-ai/glm-4.6"
-          api_key: "ENV_OPENROUTER_API_KEY"
-          base_url: "ENV_OPENROUTER_BASE_URL"
+          model: "deepseek-chat"
+          api_key: "ENV_DEEPSEEK_API_KEY"
+          base_url: "ENV_DEEPSEEK_BASE_URL"
     category:
       providers:
         - service: openai
-          model: "z-ai/glm-4.6"
-          api_key: "ENV_OPENROUTER_API_KEY"
-          base_url: "ENV_OPENROUTER_BASE_URL"
+          model: "deepseek-chat"
+          api_key: "ENV_DEEPSEEK_API_KEY"
+          base_url: "ENV_DEEPSEEK_BASE_URL"
     studio:
       providers:
         - service: openai
-          model: "z-ai/glm-4.6"
-          api_key: "ENV_OPENROUTER_API_KEY"
-          base_url: "ENV_OPENROUTER_BASE_URL"
+          model: "deepseek-chat"
+          api_key: "ENV_DEEPSEEK_API_KEY"
+          base_url: "ENV_DEEPSEEK_BASE_URL"
     title:
       providers:
         - service: openai

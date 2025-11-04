@@ -1,5 +1,4 @@
 import os
-
 import dotenv
 
 from pipeline._pipeline import Pipeline
@@ -12,7 +11,7 @@ from pipeline.transcribe_audio import TranscribeAudioStage
 from pipeline.translate import TranslateStage
 from services.code_extract.extractor import CodeExtractor
 from services.denoise.denoiser import Denoiser
-from services.pipeline.database_manager import SQLiteDatabaseManager
+from services.pipeline.database_manager import DatabaseManager
 from services.transcription.transcription_service import TranscriptionService
 from services.translation.orchestrator import TranslateOrchestrator
 from services.translation.provider import OpenaiProvider
@@ -46,18 +45,12 @@ pipeline = Pipeline(
                 "z-ai/glm-4.6",
             )
         ),
-        CorrectStage(
-            OpenaiProvider(
-                os.getenv("OPENROUTER_API_KEY"),
-                os.getenv("OPENROUTER_BASE_URL"),
-                "z-ai/glm-4.6",
-            )
-        ),
+        CorrectStage(),
         TranslateStage(),
         BilingualSubtitleStage(),
     ],
     CodeExtractor([JavBusWebService()]),
-    SQLiteDatabaseManager(),
+    DatabaseManager(),
     translator,
 )
 
