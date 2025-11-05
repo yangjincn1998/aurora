@@ -5,7 +5,7 @@ from domain.subtitle import BilingualText
 def parse_actor_string(s: str):
     names = [
         name.strip()
-        for name in s.replace("(", " ").replace(")", " ").replace("、", " ").split()
+        for name in s.replace("（", " ").replace("）", " ").replace("、", " ").split()
         if name.strip()
     ]
     return Actor(

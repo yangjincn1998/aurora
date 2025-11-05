@@ -51,6 +51,7 @@ class PipelineContext:
         import sqlite3
 
         self._current_connection = sqlite3.connect(self.database_manager.db_path)
+        self._current_connection.row_factory = sqlite3.Row
         self._current_cursor = self._current_connection.cursor()
         return self._current_cursor
 
@@ -117,6 +118,10 @@ class PipelineContext:
     def get_metadata(self, movie_code: str) -> Optional[Metadata]:
         with self.get_cursor() as cursor:
             return self.database_manager.get_metadata(movie_code, cursor)
+
+    def update_movie_for_test(self, movie: Movie):
+        with self.get_cursor() as cursor:
+            self.database_manager.update_movie_for_test(movie, cursor)
 
     def update_movie(self, movie: Movie) -> None:
         """更新 Movie 的元数据信息到清单。

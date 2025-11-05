@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import fields, is_dataclass
 from typing import List, Optional, Any
 
 from langfuse import observe, get_client
@@ -224,16 +224,21 @@ class ScrapeStage(MoviePipelineStage):
         elif isinstance(data, (str, int, float, bool)):
             return data
         else:
-            for field in fields(data):
-                value = getattr(data, field.name)
-                setattr(
-                    data,
-                    field.name,
-                    self._translate_data_structure(
-                        value, context, metadata_type, task_type
-                    ),
-                )
-            return data
+            # Check if data is a dataclass before calling fields()
+            if is_dataclass(data):
+                for field in fields(data):
+                    value = getattr(data, field.name)
+                    setattr(
+                        data,
+                        field.name,
+                        self._translate_data_structure(
+                            value, context, metadata_type, task_type
+                        ),
+                    )
+                return data
+            else:
+                # If it's not a dataclass, just return the data as-is
+                return data
 
     @observe
     def execute(self, movie: Movie, context: PipelineContext):
