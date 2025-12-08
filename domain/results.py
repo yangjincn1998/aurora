@@ -16,7 +16,7 @@ class ChatResult:
         attempt_count (int): 调用大模型的次数（包含重试）。
         time_taken (int): 请求耗时（毫秒）。
         content (Optional[str]): 返回的文本内容。
-        error (Optional[models.enums.ErrorType]): 错误类型（如果失败）。
+        error (Optional[domains.enums.ErrorType]): 错误类型（如果失败）。
     """
 
     success: bool
