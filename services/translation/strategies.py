@@ -56,7 +56,7 @@ class TranslateStrategy(ABC):
         self.temperature = temperature
 
     def _adaptive_chat(
-            self, provider: Provider, messages: list, **kwargs
+        self, provider: Provider, messages: list, **kwargs
     ) -> ChatResult:
         if self.temperature is not None:
             return provider.chat(messages, stream=self.stream, **kwargs)
@@ -66,7 +66,7 @@ class TranslateStrategy(ABC):
             )
 
     def _call_provider(
-            self, provider: Provider, messages, context: TranslateContext
+        self, provider: Provider, messages, context: TranslateContext
     ) -> ProcessResult:
         """调用 Provider 并返回 ProcessResult。
 
@@ -191,7 +191,7 @@ class ContextualMetaDataStrategy(MetaDataTranslateStrategy):
         context.terms = knowledge_entries
 
     def build_contextual_messages(
-            self, context: TranslateContext
+        self, context: TranslateContext
     ) -> List[Dict[str, str]]:
         """构建带有上下文替换的消息，用于元数据翻译。
 
@@ -273,7 +273,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
     """
 
     def build_contextual_subtitle_messages(
-            self, context: TranslateContext, node_text: str
+        self, context: TranslateContext, node_text: str
     ) -> List[Dict[str, str]]:
         """构建字幕处理消息。
 

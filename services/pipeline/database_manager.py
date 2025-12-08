@@ -660,7 +660,7 @@ class DatabaseManager:
             self._update_movie_relations(movie, cursor)
 
     def update_movie_for_test(
-            self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None
+        self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None
     ):
         """
         测试用的影片更新方法，支持插入新记录或覆盖已存在的记录。
@@ -1196,7 +1196,7 @@ class DatabaseManager:
     # ========== 全局术语库方法 ==========
 
     def add_glossary_term(
-            self, literal: str, recommended_translation: str, description: str
+        self, literal: str, recommended_translation: str, description: str
     ) -> int:
         """
         添加全局术语到知识库。
@@ -1265,11 +1265,11 @@ class DatabaseManager:
             return matched_terms
 
     def update_glossary_term(
-            self,
-            term_id: int,
-            literal: str = None,
-            recommended_translation: str = None,
-            description: str = None,
+        self,
+        term_id: int,
+        literal: str = None,
+        recommended_translation: str = None,
+        description: str = None,
     ) -> bool:
         """
         更新全局术语。
