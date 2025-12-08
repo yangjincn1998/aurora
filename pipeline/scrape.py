@@ -3,14 +3,11 @@ from typing import List, Optional, Any
 
 from langfuse import observe, get_client
 
+from domain.enums import TaskType, MetadataType
 from domain.movie import Movie, Metadata
 from domain.subtitle import BilingualText, BilingualList
-from models.enums import TaskType, MetadataType
 from pipeline.base import MoviePipelineStage
 from pipeline.context import PipelineContext
-from services.pipeline.database_manager import DatabaseManager
-from services.translation.orchestrator import TranslateOrchestrator
-from services.web_request.javbus_web_service import JavBusWebService
 from services.web_request.web_service import WebService
 from utils.logger import get_logger
 

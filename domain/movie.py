@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field, fields
 from typing import Optional, List, Dict, Any, Union, TypedDict, NotRequired
 
+from domain.enums import StageStatus, PiplinePhase
 from domain.subtitle import BilingualText, BilingualList, Serializable
-from models.enums import StageStatus, PiplinePhase
 
 
 class Term(TypedDict):

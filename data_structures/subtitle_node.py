@@ -1,6 +1,6 @@
 from typing import Optional
 
-from models.results import ChatResult
+from domain.results import ChatResult
 
 
 class SubtitleBlock:

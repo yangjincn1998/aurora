@@ -2,7 +2,7 @@ import json
 
 from langfuse import observe, get_client
 
-from models.results import ChatResult
+from domain.results import ChatResult
 from pipeline.context import PipelineContext
 from services.translation.provider import Provider
 from utils.logger import get_logger

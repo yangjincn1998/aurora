@@ -4,10 +4,10 @@ from typing import Dict, List, Optional
 from langfuse import observe
 from yaml import safe_load
 
+from domain.context import TranslateContext
+from domain.enums import TaskType
 from domain.movie import Term
-from models.context import TranslateContext
-from models.enums import TaskType
-from models.results import ProcessResult
+from domain.results import ProcessResult
 from services.translation.provider import Provider
 from services.translation.strategies import (
     TranslateStrategy,

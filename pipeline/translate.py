@@ -3,9 +3,9 @@ from pathlib import Path
 
 from langfuse import get_client, observe
 
+from domain.enums import StageStatus, PiplinePhase
 from domain.movie import Video, Movie
-from models.enums import StageStatus, PiplinePhase
-from models.results import ProcessResult
+from domain.results import ProcessResult
 from pipeline.base import VideoPipelineStage
 from pipeline.context import PipelineContext
 from utils.logger import get_logger

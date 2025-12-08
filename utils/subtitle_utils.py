@@ -185,7 +185,7 @@ def update_translate_context(context, chat_result):
                 logger.info(f"Updated term: {term_ja} -> {term_ch}")
 
         # 返回新的上下文对象（保持原有结构）
-        from models.context import TranslateContext
+        from domain.context import TranslateContext
 
         return TranslateContext(
             task_type=context.task_type,
@@ -213,7 +213,7 @@ def aggregate_successful_results(
     Returns:
         ProcessResult: 聚合后的处理结果。
     """
-    from models.results import ProcessResult
+    from domain.results import ProcessResult
 
     all_content_parts = []
     all_differences = []

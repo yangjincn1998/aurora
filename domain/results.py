@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Set
 
+from domain.enums import TaskType, ErrorType
 from domain.movie import Term
-from models.enums import TaskType, ErrorType
 
 
 @dataclass

@@ -2,8 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from domain.enums import PiplinePhase, StageStatus
 from domain.movie import Movie, Video
-from models.enums import PiplinePhase, StageStatus
 from pipeline.base import VideoPipelineStage
 from pipeline.context import PipelineContext
 from utils.logger import get_logger

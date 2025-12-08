@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import List
 
+from domain.enums import StageStatus, PiplinePhase
 from domain.movie import Movie, Video
 from domain.subtitle import BilingualList, BilingualText
-from models.enums import StageStatus, PiplinePhase
 from pipeline.base import VideoPipelineStage
 from pipeline.context import PipelineContext
 from utils.bilingual_subtitle_generator import generate_bilingual_ass_subtitle

@@ -7,8 +7,8 @@ from typing import Dict, Optional
 import openai as native_openai
 from langfuse import observe, openai
 
-from models.enums import ErrorType
-from models.results import ChatResult
+from domain.enums import ErrorType
+from domain.results import ChatResult
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

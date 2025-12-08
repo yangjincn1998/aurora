@@ -1,13 +1,14 @@
+import json
 import time
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 
 from langfuse import observe
 
 from data_structures.subtitle_node import SubtitleBlock
-from models.context import TranslateContext
-from models.enums import TaskType
-from models.results import ProcessResult
+from domain.context import TranslateContext
+from domain.enums import TaskType
+from domain.results import ProcessResult, ChatResult
 from services.translation.prompts import (
     DIRECTOR_SYSTEM_PROMPT,
     ACTOR_SYSTEM_PROMPT,
@@ -30,11 +31,7 @@ from services.translation.prompts import (
 )
 from services.translation.provider import Provider
 from utils.logger import get_logger
-from utils.prompt_utils import (
-    build_message_with_uuid,
-    build_message_with_replacements,
-    build_subtitle_messages,
-)
+from utils.prompt_utils import build_messages, recursive_replace
 from utils.subtitle_utils import (
     update_translate_context,
     adaptive_slice_subtitle,
@@ -57,6 +54,35 @@ class TranslateStrategy(ABC):
     def __init__(self, stream: bool = False, temperature: Optional[float] = None):
         self.stream = stream
         self.temperature = temperature
+
+    def _adaptive_chat(
+            self, provider: Provider, messages: list, **kwargs
+    ) -> ChatResult:
+        if self.temperature is not None:
+            return provider.chat(messages, stream=self.stream, **kwargs)
+        else:
+            return provider.chat(
+                messages, temperature=self.temperature, stream=self.stream, **kwargs
+            )
+
+    def _call_provider(
+            self, provider: Provider, messages, context: TranslateContext
+    ) -> ProcessResult:
+        """调用 Provider 并返回 ProcessResult。
+
+        Args:
+            provider (Provider): 服务提供者。
+            messages: 构建好的消息列表。
+            context: 处理上下文。
+        """
+        chat_result = self._adaptive_chat(provider, messages)
+        return ProcessResult(
+            task_type=context.task_type,
+            attempt_count=chat_result.attempt_count,
+            time_taken=chat_result.time_taken,
+            content=chat_result.content,
+            success=chat_result.success,
+        )
 
     @abstractmethod
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
@@ -122,28 +148,6 @@ class MetaDataTranslateStrategy(TranslateStrategy):
             TaskType.METADATA_TITLE: TITLE_USER_QUERY,
         }
 
-    def _call_provider(self, provider: Provider, messages, context) -> ProcessResult:
-        """调用 Provider 并返回 ProcessResult。
-
-        Args:
-            provider (Provider): 服务提供者。
-            messages: 构建好的消息列表。
-            context: 处理上下文。
-        """
-        if self.temperature is not None:
-            chat_result = provider.chat(
-                messages, stream=self.stream, temperature=self.temperature
-            )
-        else:
-            chat_result = provider.chat(messages, stream=self.stream)
-        return ProcessResult(
-            task_type=context.task_type,
-            attempt_count=chat_result.attempt_count,
-            time_taken=chat_result.time_taken,
-            content=chat_result.content,
-            success=chat_result.success,
-        )
-
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
         raise NotImplementedError()
 
@@ -172,23 +176,57 @@ class SimpleMetaDataStrategy(MetaDataTranslateStrategy):
         # 调用 Provider
         system_prompt = self.system_prompts[context.task_type]
         examples = self.examples.get(context.task_type, {})
-        messages = build_message_with_uuid(
-            system_prompt, examples, context.text_to_process
-        )
+        messages = build_messages(system_prompt, examples, context.text_to_process)
         return self._call_provider(provider, messages, context)
 
 
 class ContextualMetaDataStrategy(MetaDataTranslateStrategy):
     """使用上下文替换的元数据翻译策略。适用于需要上下文信息的元数据翻译，如简介、标题等。"""
 
+    def preprocess(self, knowledge_base, context: TranslateContext):
+        """
+        查询知识库
+        """
+        knowledge_entries = knowledge_base.query(context.text_to_process)
+        context.terms = knowledge_entries
+
+    def build_contextual_messages(
+            self, context: TranslateContext
+    ) -> List[Dict[str, str]]:
+        """构建带有上下文替换的消息，用于元数据翻译。
+
+        Args:
+            context: 处理上下文对象，需要包含actors、actress、text_to_process等属性。
+
+        Returns:
+            list: 构建好的消息列表。
+        """
+        messages = [
+            {"role": "system", "content": self.system_prompts[context.task_type]}
+        ]
+        for question, answer in self.examples.get(context.task_type, []):
+            messages.append({"role": "user", "content": str(question)})
+            messages.append({"role": "assistant", "content": answer})
+        replacements = {
+            "actors_value": context.actors,
+            "actresses_value": context.actress,
+            "synopsis_value": context.text_to_process,
+            "title_value": context.text_to_process,
+        }
+        populated_query = recursive_replace(
+            self.query_templates.get(context.task_type, {}), replacements
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": json.dumps(populated_query, ensure_ascii=False, indent=2),
+            }
+        )
+        return messages
+
     @observe
     def process(self, provider: Provider, context: TranslateContext) -> ProcessResult:
-        system_prompt = self.system_prompts[context.task_type]
-        examples = self.examples.get(context.task_type, [])
-        query = self.query_templates.get(context.task_type, {})
-        messages = build_message_with_replacements(
-            system_prompt, examples, query, context
-        )
+        messages = self.build_contextual_messages(context)
         return self._call_provider(provider, messages, context)
 
 
@@ -233,6 +271,35 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
     维护字幕块链表，当节点失败时如果台词数>=10则三等分后重试。
     子类只需实现_create_initial_linked_list方法来创建初始链表。
     """
+
+    def build_contextual_subtitle_messages(
+            self, context: TranslateContext, node_text: str
+    ) -> List[Dict[str, str]]:
+        """构建字幕处理消息。
+
+        Args:
+            context: 处理上下文对象，需要包含metadata、terms等属性。
+            node_text (str): 待处理的字幕文本。
+
+        Returns:
+            list: 构建好的消息列表。
+        """
+        system_prompt = self.system_prompts[context.task_type]
+        user_query = self.user_queries[context.task_type]
+        replacements = {
+            "metadata_value": context.metadata,
+            "text_value": node_text,
+            "terms_value": context.terms,
+        }
+        populated_query_dict = recursive_replace(user_query, replacements)
+        user_content_json = json.dumps(
+            populated_query_dict, ensure_ascii=False, indent=2
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content_json},
+        ]
+        return messages
 
     def _create_initial_linked_list(self, text: str) -> SubtitleBlock:
         """创建初始链表。
@@ -288,8 +355,6 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 head,
                 total_attempt_count,
                 total_api_time,
-                self.stream,
-                self.temperature,
             )
         )
 
@@ -308,8 +373,6 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
         head: SubtitleBlock,
         total_attempt_count: int,
         total_api_time: int,
-        stream: bool = False,
-        temperature: Optional[float] = None,
     ) -> Tuple[SubtitleBlock, int, int]:
         """尽力而为地处理链表。
 
@@ -322,8 +385,6 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             head: 链表头节点。
             total_attempt_count: 累计调用次数。
             total_api_time: 累计API时间（毫秒）。
-            stream: 是否使用流式调用，默认False。
-            temperature: 调用模型的温度，默认 1.0。
         Returns:
             A tuple containing:
                 SubtitleBlock: 更新后的头结点.
@@ -342,28 +403,12 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 continue
 
             # 处理当前节点
-            system_prompt = self.system_prompts[context.task_type]
-            user_query = self.user_queries[context.task_type]
-            messages = build_subtitle_messages(
-                system_prompt, user_query, context, current.origin
-            )
+            messages = self.build_contextual_subtitle_messages(context, current.origin)
 
             logger.info(f"Processing node with {current.count_subtitles()} subtitles")
-            if temperature is not None:
-                result = provider.chat(
-                    messages,
-                    stream=stream,
-                    temperature=temperature,
-                    timeout=500,
-                    response_format={"type": "json_object"},
-                )
-            else:
-                result = provider.chat(
-                    messages,
-                    stream=stream,
-                    timeout=500,
-                    response_format={"type": "json_object"},
-                )
+            result = self._adaptive_chat(
+                provider, messages, timeout=500, response_format={"type": "json_object"}
+            )
 
             # 累加调用次数和API时间（无论成功失败）
             total_attempt_count += result.attempt_count

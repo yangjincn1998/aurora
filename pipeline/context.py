@@ -4,12 +4,12 @@
 """
 
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
-from contextlib import contextmanager
 
+from domain.enums import MetadataType
 from domain.movie import Movie, Video, Metadata
-from models.enums import MetadataType
 from services.pipeline.database_manager import DatabaseManager
 from services.translation.orchestrator import TranslateOrchestrator
 

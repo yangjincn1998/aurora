@@ -1,13 +1,14 @@
 import itertools
 import os.path
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Literal, Optional, Generator
 
+from domain.enums import PiplinePhase, StageStatus, MetadataType
 from domain.movie import Video, Movie, Metadata, Actor, Term
-from models.enums import PiplinePhase, StageStatus, MetadataType
 
 
 class DatabaseManager:
@@ -278,6 +279,26 @@ class DatabaseManager:
                 "create index if not exists idx_terms_origin on terms(origin)"
             )
 
+            # ========== 全局术语表 ==========
+
+            # 全局术语表
+            cursor.execute(
+                """
+                create table if not exists glossary_terms
+                (
+                    id                      integer primary key autoincrement,
+                    literal                 varchar(255) not null unique,
+                    recommended_translation varchar(500),
+                    description             text         not null
+                )
+                """
+            )
+
+            # 全局术语表索引
+            cursor.execute(
+                "create index if not exists idx_glossary_literal on glossary_terms(literal)"
+            )
+
     def get_metadata(
         self, movie_code: str, cursor: Optional[sqlite3.Cursor] = None
     ) -> Metadata | None:
@@ -500,14 +521,26 @@ class DatabaseManager:
         metadata = movie.metadata
 
         return {
-            'title_ja': metadata.title.original if metadata and metadata.title else None,
-            'title_zh': metadata.title.translated if metadata and metadata.title else None,
-            'synopsis_ja': metadata.synopsis.original if metadata and metadata.synopsis else None,
-            'synopsis_zh': metadata.synopsis.translated if metadata and metadata.synopsis else None,
-            'director_ja': metadata.director.original if metadata and metadata.director else None,
-            'studio_ja': metadata.studio.original if metadata and metadata.studio else None,
-            'release_date': metadata.release_date if metadata else None,
-            'metadata': metadata
+            "title_ja": (
+                metadata.title.original if metadata and metadata.title else None
+            ),
+            "title_zh": (
+                metadata.title.translated if metadata and metadata.title else None
+            ),
+            "synopsis_ja": (
+                metadata.synopsis.original if metadata and metadata.synopsis else None
+            ),
+            "synopsis_zh": (
+                metadata.synopsis.translated if metadata and metadata.synopsis else None
+            ),
+            "director_ja": (
+                metadata.director.original if metadata and metadata.director else None
+            ),
+            "studio_ja": (
+                metadata.studio.original if metadata and metadata.studio else None
+            ),
+            "release_date": metadata.release_date if metadata else None,
+            "metadata": metadata,
         }
 
     def _update_movie_relations(self, movie: Movie, cursor: sqlite3.Cursor):
@@ -612,13 +645,13 @@ class DatabaseManager:
                            where code = ?
                            """,
                 (
-                    fields['title_ja'],
-                    fields['title_zh'],
-                    fields['synopsis_ja'],
-                    fields['synopsis_zh'],
-                    fields['director_ja'],
-                    fields['studio_ja'],
-                    fields['release_date'],
+                    fields["title_ja"],
+                    fields["title_zh"],
+                    fields["synopsis_ja"],
+                    fields["synopsis_zh"],
+                    fields["director_ja"],
+                    fields["studio_ja"],
+                    fields["release_date"],
                     movie.code,
                 ),
             )
@@ -626,7 +659,9 @@ class DatabaseManager:
             # 2. 更新关联关系
             self._update_movie_relations(movie, cursor)
 
-    def update_movie_for_test(self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None):
+    def update_movie_for_test(
+            self, movie: Movie, cursor: Optional[sqlite3.Cursor] = None
+    ):
         """
         测试用的影片更新方法，支持插入新记录或覆盖已存在的记录。
 
@@ -651,13 +686,13 @@ class DatabaseManager:
                 """,
                 (
                     movie.code,
-                    fields['title_ja'],
-                    fields['title_zh'],
-                    fields['synopsis_ja'],
-                    fields['synopsis_zh'],
-                    fields['director_ja'],
-                    fields['studio_ja'],
-                    fields['release_date'],
+                    fields["title_ja"],
+                    fields["title_zh"],
+                    fields["synopsis_ja"],
+                    fields["synopsis_zh"],
+                    fields["director_ja"],
+                    fields["studio_ja"],
+                    fields["release_date"],
                 ),
             )
 
@@ -1157,3 +1192,154 @@ class DatabaseManager:
         finally:
             if internal_cursor:
                 pass  # 上下文管理器会自动处理连接
+
+    # ========== 全局术语库方法 ==========
+
+    def add_glossary_term(
+            self, literal: str, recommended_translation: str, description: str
+    ) -> int:
+        """
+        添加全局术语到知识库。
+
+        Args:
+            literal (str): 术语字面值
+            recommended_translation (str): 推荐翻译（可用分号分隔多个翻译）
+            description (str): 术语描述
+
+        Returns:
+            int: 新插入术语的ID
+        """
+        with self.get_cursor(commit=True) as cursor:
+            cursor.execute(
+                """
+                insert into glossary_terms (literal, recommended_translation, description)
+                values (?, ?, ?)
+                """,
+                (literal, recommended_translation, description),
+            )
+            return cursor.lastrowid
+
+    def search_glossary_terms(self, text: str) -> List[Term]:
+        """
+        使用正则表达式在文本中搜索匹配的全局术语。
+
+        Args:
+            text (str): 要搜索的文本
+
+        Returns:
+            List[Term]: 匹配的术语列表
+        """
+        if not text:
+            return []
+
+        with self.get_cursor() as cursor:
+            # 获取所有全局术语
+            cursor.execute(
+                "SELECT literal, recommended_translation, description FROM glossary_terms"
+            )
+            all_terms = cursor.fetchall()
+
+            matched_terms = []
+            for row in all_terms:
+                literal, recommended_translation, description = row
+
+                # 使用正则表达式进行匹配
+                try:
+                    if re.search(literal, text):
+                        term: Term = {
+                            "japanese": literal,
+                            "recommended_chinese": recommended_translation,
+                            "description": description,
+                        }
+                        matched_terms.append(term)
+                except re.error:
+                    # 如果正则表达式无效，则使用字符串包含匹配
+                    if literal in text:
+                        term: Term = {
+                            "japanese": literal,
+                            "recommended_chinese": recommended_translation,
+                            "description": description,
+                        }
+                        matched_terms.append(term)
+
+            return matched_terms
+
+    def update_glossary_term(
+            self,
+            term_id: int,
+            literal: str = None,
+            recommended_translation: str = None,
+            description: str = None,
+    ) -> bool:
+        """
+        更新全局术语。
+
+        Args:
+            term_id (int): 术语ID
+            literal (str, optional): 新的术语字面值
+            recommended_translation (str, optional): 新的推荐翻译
+            description (str, optional): 新的描述
+
+        Returns:
+            bool: 是否更新成功
+        """
+        if not any([literal, recommended_translation, description]):
+            return False
+
+        updates = []
+        params = []
+
+        if literal is not None:
+            updates.append("literal = ?")
+            params.append(literal)
+        if recommended_translation is not None:
+            updates.append("recommended_translation = ?")
+            params.append(recommended_translation)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+
+        params.append(term_id)
+
+        with self.get_cursor(commit=True) as cursor:
+            cursor.execute(
+                f"UPDATE glossary_terms SET {', '.join(updates)} WHERE id = ?",
+                tuple(params),
+            )
+            return cursor.rowcount > 0
+
+    def delete_glossary_term(self, term_id: int) -> bool:
+        """
+        删除全局术语。
+
+        Args:
+            term_id (int): 术语ID
+
+        Returns:
+            bool: 是否删除成功
+        """
+        with self.get_cursor(commit=True) as cursor:
+            cursor.execute("DELETE FROM glossary_terms WHERE id = ?", (term_id,))
+            return cursor.rowcount > 0
+
+    def get_all_glossary_terms(self) -> List[dict]:
+        """
+        获取所有全局术语。
+
+        Returns:
+            List[dict]: 包含所有术语的字典列表
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT id, literal, recommended_translation, description FROM glossary_terms ORDER BY literal"
+            )
+            rows = cursor.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "literal": row[1],
+                    "recommended_translation": row[2],
+                    "description": row[3],
+                }
+                for row in rows
+            ]
