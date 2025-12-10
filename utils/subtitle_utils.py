@@ -32,8 +32,12 @@ def adaptive_slice_subtitle(srt_content: str, slice_size: int) -> List[str]:
     base_size = total_blocks // num_slices
     remainder = total_blocks % num_slices
     logger.info(
-        f"Adaptive slice: total lines number: {total_blocks}, slice size: {slice_size} -> "
-        f"plan to slice to {num_slices} slices, base size: {base_size}, remainder: {remainder}"
+        "Adaptive slice: total lines number: %d, slice size: %d -> plan to slice to %d slices, base size: %d, remainder: %d",
+        total_blocks,
+        slice_size,
+        num_slices,
+        base_size,
+        remainder,
     )
     final_slices = []
     current_index = 0
@@ -62,7 +66,7 @@ def should_split_node(current, threshold: int = 10) -> bool:
     if not hasattr(current, "count_subtitles"):
         return False
     subtitle_count = current.count_subtitles()
-    logger.warning(f"Node processing failed, subtitle count: {subtitle_count}")
+    logger.warning("Node processing failed, subtitle count: %d", subtitle_count)
     return subtitle_count >= threshold
 
 
@@ -109,7 +113,7 @@ def process_chain_with_retry(head, processor_func, should_retry_func=None):
         else:
             # 失败，检查是否需要重试/拆分
             if should_retry_func and should_retry_func(current):
-                logger.info(f"Splitting node into 3 parts")
+                logger.info("Splitting node into 3 parts")
                 node1, node2, node3 = current.split_into_three()
 
                 if prev is None:
@@ -182,7 +186,7 @@ def update_translate_context(context, chat_result):
                 context.terms.append(term)
                 history_primary_keys.add(term["japanese"])
                 term_ja, term_ch = term["japanese"], term.get("recommended_chinese", "")
-                logger.info(f"Updated term: {term_ja} -> {term_ch}")
+                logger.info("Updated term: %s -> %s", term_ja, term_ch)
 
         # 返回新的上下文对象（保持原有结构）
         from domain.context import TranslateContext
@@ -240,7 +244,7 @@ def aggregate_successful_results(
                     all_terms.extend(result_json["terms"])
 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from processed content: {e}")
+                logger.error("Failed to parse JSON from processed content: %s", e)
 
         current = current.next
 

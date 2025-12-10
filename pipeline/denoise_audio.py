@@ -49,7 +49,7 @@ class DenoiseAudioStage(VideoPipelineStage):
         # 获取输入音频文件路径
         input_audio_path = video.by_products.get(PiplinePhase.EXTRACT_AUDIO)
         if not input_audio_path or not Path(input_audio_path).exists():
-            logger.error(f"Input audio file not found for {video.filename}")
+            logger.error("Input audio file not found for %s", video.filename)
             video.status[PiplinePhase.DENOISE_AUDIO] = StageStatus.FAILED
             return
 
@@ -58,17 +58,17 @@ class DenoiseAudioStage(VideoPipelineStage):
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"{video.filename}.denoised.wav"
 
-        logger.info(f"Starting denoising for: {video.filename}")
+        logger.info("Starting denoising for: %s", video.filename)
 
         # 使用降噪器进行降噪处理
         success, message = self.denoiser.denoise(input_audio_path, str(output_path))
 
         if success:
             logger.info(
-                f"Audio {video.filename} has been denoised successfully: {message}"
+                "Audio %s has been denoised successfully: %s", video.filename, message
             )
             video.by_products[PiplinePhase.DENOISE_AUDIO] = str(output_path)
             video.status[PiplinePhase.DENOISE_AUDIO] = StageStatus.SUCCESS
         else:
-            logger.error(f"Denoising failed for {video.filename}: {message}")
+            logger.error("Denoising failed for %s: %s", video.filename, message)
             video.status[PiplinePhase.DENOISE_AUDIO] = StageStatus.FAILED

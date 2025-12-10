@@ -79,7 +79,7 @@ class TranscribeAudioStage(VideoPipelineStage):
         # 获取输入音频文件路径
         input_audio = video.by_products.get(PiplinePhase.DENOISE_AUDIO)
         if not input_audio or not Path(input_audio).exists():
-            logger.error(f"Input audio file not found for {video.filename}")
+            logger.error("Input audio file not found for %s", video.filename)
             video.status[PiplinePhase.TRANSCRIBE_AUDIO] = StageStatus.FAILED
             return
 
@@ -97,12 +97,15 @@ class TranscribeAudioStage(VideoPipelineStage):
             )
             output_path.write_text(srt_content, encoding="utf-8")
             logger.info(
-                f"Audio {video.filename} has been transcribed and quality checked successfully."
+                "Audio %s has been transcribed and quality checked successfully.",
+                video.filename,
             )
-            logger.info(f"Transcribed audio saved to {str(output_path)}")
+            logger.info("Transcribed audio saved to %s", str(output_path))
 
             video.by_products[PiplinePhase.TRANSCRIBE_AUDIO] = str(output_path)
             video.status[PiplinePhase.TRANSCRIBE_AUDIO] = StageStatus.SUCCESS
         else:
-            logger.error(f"Transcription failed for {video.filename}: {failure_reason}")
+            logger.error(
+                "Transcription failed for %s: %s", video.filename, failure_reason
+            )
             video.status[PiplinePhase.TRANSCRIBE_AUDIO] = StageStatus.FAILED

@@ -43,12 +43,12 @@ class SpleeterDenoiserFixed(Denoiser):
             try:
                 from spleeter.separator import Separator
 
-                logger.info(f"正在初始化Spleeter分离器，模型: {self.model_type}")
+                logger.info("正在初始化Spleeter分离器，模型: %s", self.model_type)
                 self._separator = Separator(self.model_type)
                 logger.info("Spleeter分离器初始化成功")
                 return True
             except Exception as e:
-                logger.warning(f"Spleeter初始化失败: {e}")
+                logger.warning("Spleeter初始化失败: %s", e)
                 return False
         return True
 
@@ -89,7 +89,7 @@ class SpleeterDenoiserFixed(Denoiser):
             output_dir = Path(output_path).parent
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"开始Spleeter降噪处理: {input_path}")
+            logger.info("开始Spleeter降噪处理: %s", input_path)
 
             # 尝试使用Spleeter
             success = self._try_spleeter_denoise(input_path, output_path)

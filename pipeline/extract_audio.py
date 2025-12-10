@@ -58,7 +58,7 @@ class ExtractAudioStage(VideoPipelineStage):
 
             # 如果输出文件已存在，直接标记为成功
             if output_path.exists():
-                logger.info(f"Audio file already exists: {output_path}")
+                logger.info("Audio file already exists: %s", output_path)
                 video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.SUCCESS
                 video.by_products[PiplinePhase.EXTRACT_AUDIO] = str(output_path)
                 return
@@ -84,19 +84,19 @@ class ExtractAudioStage(VideoPipelineStage):
                 str(output_path),
             ]
 
-            logger.info(f"Extracting audio from {video.filename}...")
+            logger.info("Extracting audio from %s...", video.filename)
             result = subprocess.run(
                 command, capture_output=True, text=True, timeout=3600  # 1小时超时
             )
 
             if result.returncode != 0:
-                logger.error(f"FFmpeg error: {result.stderr}")
+                logger.error("FFmpeg error: %s", result.stderr)
                 video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
                 return
 
             # 验证输出文件是否创建
             if not output_path.exists():
-                logger.error(f"Output file not created: {output_path}")
+                logger.error("Output file not created: %s", output_path)
                 video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
                 return
 
@@ -106,41 +106,44 @@ class ExtractAudioStage(VideoPipelineStage):
 
             if video_duration is None:
                 logger.warning(
-                    f"Could not get video duration for {video.filename}, skipping duration check"
+                    "Could not get video duration for %s, skipping duration check",
+                    video.filename,
                 )
             elif audio_duration is None:
-                logger.error(f"Could not get audio duration for {output_path}")
+                logger.error("Could not get audio duration for %s", output_path)
                 video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
                 return
-            else:
-                # 检查时长差异
-                duration_diff = abs(video_duration - audio_duration)
-                if duration_diff > 180:  # 3分钟 = 180秒
-                    logger.error(
-                        f"Duration mismatch for {video.filename}: "
-                        f"video={video_duration:.2f}s, audio={audio_duration:.2f}s, "
-                        f"diff={duration_diff:.2f}s (threshold: 180s)"
-                    )
-                    video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
-                    # 删除不合格的音频文件
-                    output_path.unlink()
-                    return
-                else:
-                    logger.info(
-                        f"Duration check passed: video={video_duration:.2f}s, "
-                        f"audio={audio_duration:.2f}s, diff={duration_diff:.2f}s"
-                    )
+            # 检查时长差异
+            duration_diff = abs(video_duration - audio_duration)
+            if duration_diff > 180:  # 3分钟 = 180秒
+                logger.error(
+                    "Duration mismatch for %s: video=%.2fs, audio=%.2fs, diff=%.2fs (threshold: 180s)",
+                    video.filename,
+                    video_duration,
+                    audio_duration,
+                    duration_diff,
+                )
+                video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
+                # 删除不合格的音频文件
+                output_path.unlink()
+                return
+            logger.info(
+                "Duration check passed: video=%.2fs, audio=%.2fs, diff=%.2fs",
+                video_duration,
+                audio_duration,
+                duration_diff,
+            )
 
             # 标记为成功
             video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.SUCCESS
             video.by_products[PiplinePhase.EXTRACT_AUDIO] = str(output_path)
-            logger.info(f"Successfully extracted audio to: {output_path}")
+            logger.info("Successfully extracted audio to: %s", output_path)
 
         except subprocess.TimeoutExpired:
-            logger.error(f"FFmpeg timeout for {video.filename}")
+            logger.error("FFmpeg timeout for %s", video.filename)
             video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
-        except Exception as e:
-            logger.error(f"Failed to extract audio from {video.filename}: {e}")
+        except Exception:
+            logger.exception("Failed to extract audio from %s", video.filename)
             video.status[PiplinePhase.EXTRACT_AUDIO] = StageStatus.FAILED
 
     @staticmethod
@@ -168,7 +171,7 @@ class ExtractAudioStage(VideoPipelineStage):
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
-                logger.error(f"ffprobe error for {file_path}: {result.stderr}")
+                logger.error("ffprobe error for %s: %s", file_path, result.stderr)
                 return None
 
             # 解析JSON输出
@@ -176,17 +179,17 @@ class ExtractAudioStage(VideoPipelineStage):
             duration_str = data.get("format", {}).get("duration")
 
             if duration_str is None:
-                logger.error(f"Duration not found in ffprobe output for {file_path}")
+                logger.error("Duration not found in ffprobe output for %s", file_path)
                 return None
 
             return float(duration_str)
 
         except subprocess.TimeoutExpired:
-            logger.error(f"ffprobe timeout for {file_path}")
+            logger.error("ffprobe timeout for %s", file_path)
             return None
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse ffprobe output for {file_path}: {e}")
+        except json.JSONDecodeError:
+            logger.exception("Failed to parse ffprobe output for %s", file_path)
             return None
-        except Exception as e:
-            logger.error(f"Failed to get duration for {file_path}: {e}")
+        except Exception:
+            logger.exception("Failed to get duration for %s", file_path)
             return None

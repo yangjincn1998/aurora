@@ -69,21 +69,21 @@ class JavBusWebService(WebService):
         timeout = kwargs.get("timeout", self._timeout)
         headers = kwargs.get("headers", self._headers)
 
-        logger.info(f"向 JavBus 请求番号: {av_code}, URL: {url}")
+        logger.info("向 JavBus 请求番号: %s, URL: %s", av_code, url)
 
         try:
             response = self._session.get(url, headers=headers, timeout=timeout)
 
             # 检查404错误
             if response.status_code == 404:
-                logger.warning(f"番号 {av_code} 不存在 (404 Not Found)")
+                logger.warning("番号 %s 不存在 (404 Not Found)", av_code)
                 raise requests.exceptions.HTTPError(
                     f"番号 {av_code} 不存在 (404 Not Found)"
                 )
 
             # 检查是否包含404标识（有些网站可能返回200但内容是404页面）
             if "404" in response.text and "Not Found" in response.text:
-                logger.warning(f"番号 {av_code} 不存在 (页面显示404)")
+                logger.warning("番号 %s 不存在 (页面显示404)", av_code)
                 raise requests.exceptions.HTTPError(
                     f"番号 {av_code} 不存在 (页面显示404)"
                 )
@@ -91,21 +91,21 @@ class JavBusWebService(WebService):
             response.raise_for_status()
 
             logger.info(
-                f"成功获取番号 {av_code} 的HTML内容，长度: {len(response.text)} 字符"
+                "成功获取番号 %s 的HTML内容，长度: %d 字符", av_code, len(response.text)
             )
             return response.text
 
-        except requests.exceptions.Timeout as e:
-            logger.error(f"请求番号 {av_code} 超时: {e}")
+        except requests.exceptions.Timeout:
+            logger.exception("请求番号 %s 超时", av_code)
             raise
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"请求番号 {av_code} 连接错误: {e}")
+        except requests.exceptions.ConnectionError:
+            logger.exception("请求番号 %s 连接错误", av_code)
             raise
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"请求番号 {av_code} HTTP错误: {e}")
+        except requests.exceptions.HTTPError:
+            logger.exception("请求番号 %s HTTP错误", av_code)
             raise
-        except requests.exceptions.RequestException as e:
-            logger.error(f"请求番号 {av_code} 发生未知网络错误: {e}")
+        except requests.exceptions.RequestException:
+            logger.exception("请求番号 %s 发生未知网络错误", av_code)
             raise
 
     def fetch_metadata(self, av_code: str) -> Metadata:
@@ -127,7 +127,7 @@ class JavBusWebService(WebService):
             raise ValueError("av_code 不能为空")
 
         av_code = av_code.strip()
-        logger.info(f"开始获取番号 {av_code} 的元数据")
+        logger.info("开始获取番号 %s 的元数据", av_code)
 
         try:
             # 获取HTML内容
@@ -136,11 +136,11 @@ class JavBusWebService(WebService):
             # 解析HTML
             metadata = self._parse_html(html_content, av_code)
 
-            logger.info(f"成功解析番号 {av_code} 的元数据")
+            logger.info("成功解析番号 %s 的元数据", av_code)
             return metadata
 
         except Exception as e:
-            logger.error(f"获取番号 {av_code} 元数据失败: {e}")
+            logger.exception("获取番号 %s 元数据失败", av_code)
             raise
 
     def validate_code(self, av_code: str) -> bool:
@@ -163,7 +163,7 @@ class JavBusWebService(WebService):
             return False
 
         av_code = av_code.strip()
-        logger.info(f"验证番号: {av_code}")
+        logger.info("验证番号: %s", av_code)
 
         try:
             # 尝试请求HTML
@@ -171,26 +171,27 @@ class JavBusWebService(WebService):
 
             # 如果成功获取HTML且不包含404标识，则认为番号有效
             if html_content:
-                logger.info(f"番号 {av_code} 验证成功")
+                logger.info("番号 %s 验证成功", av_code)
                 return True
             else:
-                logger.warning(f"番号 {av_code} 验证失败: HTML内容为空")
+                logger.warning("番号 %s 验证失败: HTML内容为空", av_code)
                 return False
 
         except requests.exceptions.HTTPError as e:
             # HTTP错误（包括404）表示番号无效
-            logger.warning(f"番号 {av_code} 验证失败: {e}")
+            logger.warning("番号 %s 验证失败: %s", av_code, e)
             return False
         except requests.exceptions.RequestException as e:
             # 网络错误表示番号无效（无法验证）
-            logger.warning(f"番号 {av_code} 验证失败（网络错误）: {e}")
+            logger.warning("番号 %s 验证失败（网络错误）: %s", av_code, e)
             return False
-        except Exception as e:
+        except Exception:
             # 其他错误也认为番号无效
-            logger.error(f"番号 {av_code} 验证失败（未知错误）: {e}")
+            logger.exception("番号 %s 验证失败（未知错误）", av_code)
             return False
 
-    def _parse_html(self, html_content: str, code: str) -> Metadata:
+    @staticmethod
+    def _parse_html(html_content: str, code: str) -> Metadata:
         """
         解析HTML内容并提取元数据。
 
@@ -211,7 +212,7 @@ class JavBusWebService(WebService):
             # 标题格式通常为 "CODE 标题"，去除番号部分
             title_without_code = title_text.replace(code, "").strip()
             metadata.title = BilingualText(original=title_without_code)
-            logger.debug(f"提取标题: {title_without_code}")
+            logger.debug("提取标题: %s", title_without_code)
 
         # 查找info区域
         container = soup.find("div", class_="container")
@@ -239,29 +240,29 @@ class JavBusWebService(WebService):
             elif key == "發行日期":
                 date_text = p_tag.get_text().replace(header_tag.text, "").strip()
                 metadata.release_date = date_text
-                logger.debug(f"提取发行日期: {date_text}")
+                logger.debug("提取发行日期: %s", date_text)
             elif key == "長度":
                 # 长度信息暂时不保存到metadata中
                 length_text = p_tag.get_text().replace(header_tag.text, "").strip()
-                logger.debug(f"提取时长: {length_text}")
+                logger.debug("提取时长: %s", length_text)
             elif key == "導演":
                 director_link = p_tag.find("a")
                 if director_link:
                     director_name = director_link.text.strip()
                     metadata.director = BilingualText(original=director_name)
-                    logger.debug(f"提取导演: {director_name}")
+                    logger.debug("提取导演: %s", director_name)
             elif key == "製作商":
                 studio_link = p_tag.find("a")
                 if studio_link:
                     studio_name = studio_link.text.strip()
                     metadata.studio = BilingualText(original=studio_name)
-                    logger.debug(f"提取制作商: {studio_name}")
+                    logger.debug("提取制作商: %s", studio_name)
             elif key == "發行商":
                 # 发行商信息
                 publisher_link = p_tag.find("a")
                 if publisher_link:
                     publisher_name = publisher_link.text.strip()
-                    logger.debug(f"提取发行商: {publisher_name}")
+                    logger.debug("提取发行商: %s", publisher_name)
 
         # 提取类别 (genres)
         # 类别在包含class="genre"的p标签中，且该p标签前有一个包含"類別:"或class="header"的p标签
@@ -288,7 +289,7 @@ class JavBusWebService(WebService):
                         if categories:
                             metadata.categories = categories
                             logger.debug(
-                                f"提取类别: {[c.original for c in categories]}"
+                                "提取类别: %s", [c.original for c in categories]
                             )
                             break
 
@@ -316,7 +317,9 @@ class JavBusWebService(WebService):
                                 if actor:
                                     actresses.append(actor)
                                     logger.debug(
-                                        f"提取演员: {actor.current_name} (别名: {[name.original for name in actor.all_names[1:]]})"
+                                        "提取演员: %s (别名: %s)",
+                                        actor.current_name,
+                                        [name.original for name in actor.all_names[1:]],
                                     )
                                 else:
                                     # 如果解析失败，创建一个简单的Actor对象
@@ -327,7 +330,7 @@ class JavBusWebService(WebService):
                                         ],
                                     )
                                     actresses.append(simple_actor)
-                                    logger.debug(f"提取演员(简单): {actress_name}")
+                                    logger.debug("提取演员(简单): %s", actress_name)
                     if actresses:
                         metadata.actresses = actresses
                 break

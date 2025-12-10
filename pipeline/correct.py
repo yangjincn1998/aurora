@@ -75,7 +75,7 @@ class CorrectStage(VideoPipelineStage):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch(exist_ok=True)
             path.write_text(corrected_srt, encoding="utf-8")
-            logger.info(f"Successfully corrected subtitle, saved to {corrected_path}")
+            logger.info("Successfully corrected subtitle, saved to %s", corrected_path)
             existed_terms = {term["japanese"] for term in movie.terms}
             for term in result.terms:
                 if term["japanese"] not in existed_terms:
@@ -83,6 +83,6 @@ class CorrectStage(VideoPipelineStage):
                     existed_terms.add(term["japanese"])
             video.status[PiplinePhase.CORRECT_SUBTITLE] = StageStatus.SUCCESS
         else:
-            logger.error(f"Failed to correct subtitle for video {video.filename}")
+            logger.error("Failed to correct subtitle for video %s", video.filename)
             video.status[PiplinePhase.CORRECT_SUBTITLE] = StageStatus.FAILED
         return

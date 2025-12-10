@@ -64,23 +64,31 @@ class ScrapeStage(MoviePipelineStage):
         cached_record = context.get_entity(entity_type, original_text)
         if cached_record:
             logger.info(
-                f"Cache hit for {entity_type.name} '{original_text}': '{cached_record}'"
+                "Cache hit for %s '%s': '%s'",
+                entity_type.name,
+                original_text,
+                cached_record,
             )
             return cached_record
 
         # 2. 调用翻译器 (通过传入的函数)
-        logger.info(f"Attempt to translate '{entity_type.name}': '{original_text}'")
+        logger.info("Attempt to translate '%s': '%s'", entity_type.name, original_text)
         translate_result = translation_func()
 
         # 3. 返回
         if translate_result and translate_result.success:
             translated_text = translate_result.content
             logger.info(
-                f"Translated {entity_type.name} '{original_text}' to '{translated_text}'"
+                "Translated %s '%s' to '%s'",
+                entity_type.name,
+                original_text,
+                translated_text,
             )
             return translated_text
 
-        logger.warning(f"Translation failed for {entity_type.name} '{original_text}'")
+        logger.warning(
+            "Translation failed for %s '%s'", entity_type.name, original_text
+        )
         return None
 
     @observe
@@ -178,7 +186,7 @@ class ScrapeStage(MoviePipelineStage):
         task_type: TaskType,
     ) -> Any:
         if isinstance(data, BilingualText) and not data.translated:
-            logger.info(f"Processing BilingualText value {data}...")
+            logger.info("Processing BilingualText value %s...", data)
             data.translated = self._translate_generic_field(
                 context, data.original, metadata_type, task_type
             )
@@ -186,10 +194,10 @@ class ScrapeStage(MoviePipelineStage):
         elif isinstance(data, BilingualList) and (
             not data.translated or len(data.translated) != len(data.original)
         ):
-            logger.info(f"Processing bilingual list object...")
+            logger.info("Processing bilingual list object...")
             translated_list = []
             for item in data.original:
-                logger.info(f"Processing item {item}...")
+                logger.info("Processing item %s...", item)
                 translated = self._translate_generic_field(
                     context, item, metadata_type, task_type
                 )
@@ -254,21 +262,26 @@ class ScrapeStage(MoviePipelineStage):
         metadata = context.get_metadata(movie.code)
         movie.metadata = metadata
         if movie.metadata is None:
-            logger.info(f"Starting metadata scraping for {movie.code}...")
+            logger.info("Starting metadata scraping for %s...", movie.code)
             # 抓取逻辑实现
             for server in self.web_servers:
                 try:
-                    logger.info(f"Trying to scrape {movie.code} from {server.url}...")
+                    logger.info(
+                        "Trying to scrape %s from %s...", movie.code, server.url
+                    )
                     metadata: Metadata = server.fetch_metadata(movie.code)
                     movie.metadata = metadata
                     break
                 except Exception as e:
                     logger.warning(
-                        f"server {server.url} failed to get metadata for {movie.code}: {e}"
+                        "server %s failed to get metadata for %s: %s",
+                        server.url,
+                        movie.code,
+                        e,
                     )
             if movie.metadata is None:
                 logger.error(
-                    f"All web services failed to get metadata for {movie.code}"
+                    "All web services failed to get metadata for %s", movie.code
                 )
                 return
         # 定义字段到枚举的映射
@@ -289,7 +302,7 @@ class ScrapeStage(MoviePipelineStage):
                 continue
             metadata_type, task_type = field_map[field.name]
             value = getattr(movie.metadata, field.name)
-            logger.info(f'Check generic field: "{field.name}"...')
+            logger.info('Check generic field: "%s"...', field.name)
             self._translate_data_structure(value, context, metadata_type, task_type)
 
         # 最后翻译需要上下文的字段
@@ -299,9 +312,9 @@ class ScrapeStage(MoviePipelineStage):
                 context, movie.metadata
             )
         elif not movie.metadata.title:
-            logger.warning(f"Field title is empty.")
+            logger.warning("Field title is empty.")
         else:
-            logger.info(f"Cache hit field title: {movie.metadata.title}.")
+            logger.info("Cache hit field title: %s.", movie.metadata.title)
 
         logger.info("Processing field synopsis...")
         if movie.metadata.synopsis and not movie.metadata.synopsis.translated:
@@ -309,8 +322,8 @@ class ScrapeStage(MoviePipelineStage):
                 context, movie.metadata
             )
         elif not movie.metadata.synopsis:
-            logger.info(f"Field synopsis is empty.")
+            logger.info("Field synopsis is empty.")
         else:
-            logger.info(f"Cache hit field synopsis: {movie.metadata.synopsis}.")
+            logger.info("Cache hit field synopsis: %s.", movie.metadata.synopsis)
 
-        logger.info(f"Completed metadata scraping and translation for {movie.code}")
+        logger.info("Completed metadata scraping and translation for %s", movie.code)

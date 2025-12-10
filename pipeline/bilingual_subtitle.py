@@ -78,7 +78,7 @@ class BilingualSubtitleStage(VideoPipelineStage):
 
             # 检查中文字幕文件是否存在，如果不存在则记录警告
             if not Path(sch_srt_path).exists():
-                logger.warning(f"中文字幕文件不存在: {sch_srt_path}，将仅生成日语字幕")
+                logger.warning("中文字幕文件不存在: %s，将仅生成日语字幕", sch_srt_path)
 
             # 生成输出标题
             metadata = movie.metadata
@@ -104,19 +104,15 @@ class BilingualSubtitleStage(VideoPipelineStage):
             # ASS格式双语字幕
             bilingual_ass_path = output_dir / f"{video.filename}.ass"
             bilingual_ass_path.write_text(ass_content, encoding="utf-8")
-            logger.info(f"双语ASS字幕已保存: {bilingual_ass_path}")
+            logger.info("双语ASS字幕已保存: %s", bilingual_ass_path)
 
             # 更新视频状态和输出路径（只记录ass目录的位置）
             video.by_products[PiplinePhase.BILINGUAL_SUBTITLE] = str(bilingual_ass_path)
             video.status[PiplinePhase.BILINGUAL_SUBTITLE] = StageStatus.SUCCESS
 
-            logger.info(f"成功为 {video.filename} 生成双语ASS字幕文件")
+            logger.info("成功为 %s 生成双语ASS字幕文件", video.filename)
 
         except Exception as e:
-            error_message = f"双语字幕生成失败: {e}"
-            logger.error(
-                f"为 {video.filename} 生成双语字幕时发生错误: {error_message}",
-                exc_info=True,
-            )
+            logger.exception("为 %s 生成双语字幕时发生错误", video.filename)
             video.status[PiplinePhase.BILINGUAL_SUBTITLE] = StageStatus.FAILED
             raise

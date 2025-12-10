@@ -74,7 +74,7 @@ class Provider(ABC):
         if service_type == "openai":
             return OpenaiProvider.from_config(config)
         else:
-            logger.warning(f"Unknown service type: {service_type}")
+            logger.warning("Unknown service type: %s", service_type)
             return None
 
 
@@ -145,20 +145,25 @@ class OpenaiProvider(Provider):
             env_var = api_key[4:]  # 去掉 "ENV_" 前缀
             api_key = os.getenv(env_var)
             if not api_key:
-                logger.warning(f"Environment variable {env_var} not found for api_key")
+                logger.warning("Environment variable %s not found for api_key", env_var)
                 return None
 
         if base_url and base_url.startswith("ENV_"):
             env_var = base_url[4:]
             base_url = os.getenv(env_var)
             if not base_url:
-                logger.warning(f"Environment variable {env_var} not found for base_url")
+                logger.warning(
+                    "Environment variable %s not found for base_url", env_var
+                )
                 return None
 
         # 验证必需参数
         if not all([api_key, base_url, model]):
             logger.warning(
-                f"Missing required parameters: api_key={bool(api_key)}, base_url={bool(base_url)}, model={bool(model)}"
+                "Missing required parameters: api_key=%s, base_url=%s, model=%s",
+                bool(api_key),
+                bool(base_url),
+                bool(model),
             )
             return None
 
@@ -168,7 +173,7 @@ class OpenaiProvider(Provider):
         # 检查缓存中是否已存在相同配置的实例
         if cache_key in cls._instance_cache:
             logger.debug(
-                f"Returning cached OpenaiProvider instance for key: {cache_key}"
+                "Returning cached OpenaiProvider instance for key: %s", cache_key
             )
             return cls._instance_cache[cache_key]
 
@@ -176,7 +181,7 @@ class OpenaiProvider(Provider):
         instance = cls(api_key=api_key, base_url=base_url, model=model, timeout=timeout)
         cls._instance_cache[cache_key] = instance
         logger.debug(
-            f"Created and cached new OpenaiProvider instance for key: {cache_key}"
+            "Created and cached new OpenaiProvider instance for key: %s", cache_key
         )
 
         return instance
@@ -235,7 +240,8 @@ class OpenaiProvider(Provider):
         # 熔断检查：如果 Provider 已不可用，快速失败
         if not self.available:
             logger.warning(
-                f"Provider {self.model} is unavailable due to previous irrecoverable error"
+                "Provider %s is unavailable due to previous irrecoverable error",
+                self.model,
             )
             return ChatResult(
                 success=False,
@@ -247,7 +253,7 @@ class OpenaiProvider(Provider):
         start_time = time.time()
         attempt_count = 0
 
-        logger.info(f"OpenAIProvider chat called for model: {self.model}")
+        logger.info("OpenAIProvider chat called for model: %s", self.model)
 
         max_retries = 3
 
@@ -538,7 +544,7 @@ class OpenaiProvider(Provider):
                         content=None,
                         error=ErrorType.AUTHENTICATION_ERROR,
                     )
-                elif status_code == 402:
+                if status_code == 402:
                     logger.error(
                         f"OpenAI API payment required (402): {e.response.text}"
                     )
@@ -550,7 +556,7 @@ class OpenaiProvider(Provider):
                         content=None,
                         error=ErrorType.INSUFFICIENT_QUOTA,
                     )
-                elif status_code == 403:
+                if status_code == 403:
                     logger.error(
                         f"OpenAI API permission denied (403): {e.response.text}"
                     )
@@ -562,7 +568,7 @@ class OpenaiProvider(Provider):
                         content=None,
                         error=ErrorType.PERMISSION_DENIED,
                     )
-                elif status_code == 404:
+                if status_code == 404:
                     logger.error(f"OpenAI API not found (404): {e.response.text}")
                     self._available = False  # 触发熔断
                     return ChatResult(
@@ -574,7 +580,7 @@ class OpenaiProvider(Provider):
                     )
 
                 # 请求级别错误（不触发熔断，可能通过调整请求解决）
-                elif status_code == 400:
+                if status_code == 400:
                     logger.error(f"OpenAI API bad request (400): {e.response.text}")
                     return ChatResult(
                         success=False,
@@ -583,7 +589,7 @@ class OpenaiProvider(Provider):
                         content=None,
                         error=ErrorType.UNPROCESSABLE_ENTITY,
                     )
-                elif status_code == 413:
+                if status_code == 413:
                     logger.error(
                         f"OpenAI API payload too large (413): {e.response.text}"
                     )
@@ -594,7 +600,7 @@ class OpenaiProvider(Provider):
                         content=None,
                         error=ErrorType.PAYLOAD_TOO_LARGE,
                     )
-                elif status_code == 422:
+                if status_code == 422:
                     logger.error(
                         f"OpenAI API unprocessable entity (422): {e.response.text}"
                     )

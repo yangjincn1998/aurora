@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from domain.movie import Movie, Video
-from domain.subtitle import BilingualList
 from pipeline.base import MoviePipelineStage, VideoPipelineStage, PipelineStage
 from pipeline.context import PipelineContext
 from pipeline.correct import CorrectStage
@@ -54,14 +53,14 @@ class Pipeline:
     def run(self, src_path: str):
         """扫描并处理所有影片。"""
         movies = self._scan(src_path)
-        logger.info(f"扫描到 {len(movies)} 部影片待处理。")
+        logger.info("扫描到 %d 部影片待处理。", len(movies))
         for movie in movies:
             # 启动该影片的处理流程（内部包含注册和状态同步）
             self._process_movie(movie)
 
     def _process_movie(self, movie: Movie):
         """处理单部影片，直到所有阶段完成。"""
-        logger.info(f"开始处理影片: {movie.code}")
+        logger.info("开始处理影片: %s", movie.code)
 
         # 开始事务，整部影片处理过程中使用单一数据库连接
         self.context.begin_transaction()
@@ -75,11 +74,13 @@ class Pipeline:
             while True:
                 next_stage = self._get_next_stage(movie)
                 if not next_stage:
-                    logger.info(f"影片 {movie.code} 的所有影片级阶段处理完毕。")
+                    logger.info("影片 %s 的所有影片级阶段处理完毕。", movie.code)
                     break
 
                 logger.info(
-                    f"影片 {movie.code} 即将执行阶段: {next_stage.__class__.__name__}"
+                    "影片 %s 即将执行阶段: %s",
+                    movie.code,
+                    next_stage.__class__.__name__,
                 )
                 self.context.movie_code = movie.code
                 # 生成 Langfuse 会话 ID
@@ -109,15 +110,19 @@ class Pipeline:
 
             # 处理该影片下所有视频的视频级别阶段（在同一事务中）
             for video in movie.videos:
-                logger.info(f"开始处理视频: {video.filename}")
+                logger.info("开始处理视频: %s", video.filename)
                 while True:
                     next_stage = self._get_next_stage(movie, video)
                     if not next_stage:
-                        logger.info(f"视频 {video.filename} 的所有视频级阶段处理完毕。")
+                        logger.info(
+                            "视频 %s 的所有视频级阶段处理完毕。", video.filename
+                        )
                         break
 
                     logger.info(
-                        f"视频 {video.filename} 即将执行阶段: {next_stage.__class__.__name__}"
+                        "视频 %s 即将执行阶段: %s",
+                        video.filename,
+                        next_stage.__class__.__name__,
                     )
                     # 传递 context 给 stage
                     next_stage.execute(movie, video, self.context)
@@ -130,7 +135,7 @@ class Pipeline:
             self.context.commit_transaction()
         except Exception as e:
             # 发生错误时回滚事务
-            logger.error(f"处理影片 {movie.code} 时发生错误: {e}")
+            logger.exception("处理影片 %s 时发生错误", movie.code)
             self.context.rollback_transaction()
             raise
 
@@ -149,7 +154,7 @@ class Pipeline:
         """
         dir_path = Path(src_dir)
         if not dir_path.is_dir():
-            logger.error(f"Directory {dir_path} does not exist.")
+            logger.error("Directory %s does not exist.", dir_path)
             raise FileNotFoundError(f"Directory {dir_path} does not exist.")
         video_suffixes = [
             ".mp4",
@@ -165,14 +170,14 @@ class Pipeline:
         video_to_process = [
             file for ext in video_suffixes for file in dir_path.rglob(f"*{ext}")
         ]
-        logger.info(f"Found {len(video_to_process)} videos.")
+        logger.info("Found %d videos.", len(video_to_process))
         movies_map: Dict[str, Movie] = {}
         for video in video_to_process:
             video_path = str(video.resolve())
             partial_hash = calculate_partial_sha256(video_path)
             if not partial_hash:
                 logger.warning(
-                    f"Could not calculate SHA256 for {video.name}. Skipping this file."
+                    "Could not calculate SHA256 for %s. Skipping this file.", video.name
                 )
                 continue
 
@@ -189,7 +194,8 @@ class Pipeline:
             else:
                 # 找不到番号的集中在"匿名影片"下
                 logger.warning(
-                    f"Could not extract AV code from filename: {video.name}. Add this file to the 'anonymous movie'."
+                    "Could not extract AV code from filename: %s. Add this file to the 'anonymous movie'.",
+                    video.name,
                 )
                 movie_code = "anonymous"
 

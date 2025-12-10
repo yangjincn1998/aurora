@@ -52,19 +52,19 @@ class MissAvWebService(WebService):
                 time_since_last_request = current_time - self._last_request_time
                 if time_since_last_request < 2.0:
                     sleep_time = 2.0 - time_since_last_request
-                    logger.info(f"请求限流，请等待{sleep_time:.2f}s...")
+                    logger.info("请求限流，请等待%.2fs...", sleep_time)
                     time.sleep(sleep_time)
-                logger.info(f"正在向{self.url}请求，第{attempt + 1}/5次尝试...")
+                logger.info("正在向%s请求，第%d/5次尝试...", self.url, attempt + 1)
                 response = self.scraper.get(self._url, timeout=8)
                 self._last_request_time = time.time()
-                logger.info(f"请求成功，状态码：{response.status_code}")
+                logger.info("请求成功，状态码：%s", response.status_code)
                 return response.text
             except Exception as e:
                 self._last_request_time = time.time()
-                logger.warning(f"请求{request_url}失败, 错误：{e}.")
+                logger.warning("请求%s失败, 错误：%s.", request_url, e)
                 if attempt < 5:
                     sleep_duration = 2 * (attempt + 1)
-                    logger.info(f"将在{sleep_duration:.2f}s后重试...")
+                    logger.info("将在%.2fs后重试...", sleep_duration)
                     time.sleep(sleep_duration)
                 else:
                     if (
@@ -72,8 +72,8 @@ class MissAvWebService(WebService):
                         and hasattr(response, "status_code")
                         and response.status_code not in [403, 404]
                     ):
-                        logger.error(f"所有请求均失败，服务{self.url}可能出现问题。")
-                        raise ConnectionError(f"HTTP请求失败：{e}.")
+                        logger.error("所有请求均失败，服务%s可能出现问题。", self.url)
+                        raise ConnectionError("HTTP请求失败：%s.", e)
         raise ConnectionError("未知错误导致失败.")
 
     def _parse_ja_page(self, soup: BeautifulSoup, metadata: Metadata):
@@ -197,25 +197,25 @@ class MissAvWebService(WebService):
         metadata = Metadata()
 
         # --- 步骤 1: 请求日文页面，获取所有高质量的原始信息 ---
-        logger.info(f"正在为 {av_code} 获取原始（日文）元数据...")
+        logger.info("正在为 %s 获取原始（日文）元数据...", av_code)
         try:
             html_ja = self.request(av_code, lang="ja")
             soup_ja = BeautifulSoup(html_ja, "html.parser")
             self._parse_ja_page(soup_ja, metadata)
         except ConnectionError as e:
-            logger.error(f"无法获取 {av_code} 的日文页面。元数据可能不完整。错误: {e}")
+            logger.exception("无法获取 %s 的日文页面。元数据可能不完整。", av_code)
 
         # --- 步骤 2: 请求中文页面，补充人名等的翻译 ---
         # 仅在获取到日文信息后才尝试补充翻译
         if metadata.title:
-            logger.info(f"正在为 {av_code} 补充翻译（中文）元数据...")
+            logger.info("正在为 %s 补充翻译（中文）元数据...", av_code)
             try:
                 html_cn = self.request(av_code, lang="cn")
                 soup_cn = BeautifulSoup(html_cn, "html.parser")
                 self._parse_cn_page(soup_cn, metadata)
             except ConnectionError as e:
                 logger.warning(
-                    f"无法获取 {av_code} 的中文页面。部分翻译可能缺失。错误: {e}"
+                    "无法获取 %s 的中文页面。部分翻译可能缺失。错误: %s", av_code, e
                 )
 
         # 根据您的要求，清除不想要的翻译

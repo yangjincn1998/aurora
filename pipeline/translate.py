@@ -18,6 +18,7 @@ class TranslateStage(VideoPipelineStage):
 
     负责将视频字幕从日语翻译为中文。"""
 
+    @property
     def name(self):
         """获取阶段名称。
 
@@ -74,11 +75,11 @@ class TranslateStage(VideoPipelineStage):
             out_path = os.path.join(
                 context.output_dir, movie.code, file_name + ".translated.srt"
             )
-            logger.info(f"The translated srt will be wrote in {out_path}")
+            logger.info("The translated srt will be wrote in %s", out_path)
             video.by_products[PiplinePhase.TRANSLATE_SUBTITLE] = out_path
             Path(out_path).touch(exist_ok=True)
             Path(out_path).write_text(processed_text, encoding="utf-8")
-            logger.info(f"The translated srt was wrote in {out_path} successfully")
+            logger.info("The translated srt was wrote in %s successfully", out_path)
             video.status[PiplinePhase.TRANSLATE_SUBTITLE] = StageStatus.SUCCESS
         else:
             logger.warning("Failed to translation srt")

@@ -102,7 +102,8 @@ class TranslateStrategy(ABC):
         """
         if hasattr(provider, "available") and not provider.available:
             logger.warning(
-                f"Provider {provider.model} is unavailable (circuit breaker triggered), failing fast"
+                "Provider %s is unavailable (circuit breaker triggered), failing fast",
+                provider.model,
             )
             return ProcessResult(
                 task_type=task_type,
@@ -405,7 +406,7 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
             # 处理当前节点
             messages = self.build_contextual_subtitle_messages(context, current.origin)
 
-            logger.info(f"Processing node with {current.count_subtitles()} subtitles")
+            logger.info("Processing node with %d subtitles", current.count_subtitles())
             result = self._adaptive_chat(
                 provider, messages, timeout=500, response_format={"type": "json_object"}
             )
@@ -419,19 +420,19 @@ class BestEffortSubtitleStrategy(BaseSubtitleStrategy):
                 current.processed = result
                 current.is_processed = True
                 context = update_translate_context(context, result)
-                logger.info(f"Node processed successfully")
+                logger.info("Node processed successfully")
                 prev = current
                 current = current.next
             else:
                 # 失败，检查是否需要三等分
                 subtitle_count = current.count_subtitles()
                 logger.warning(
-                    f"Node processing failed, subtitle count: {subtitle_count}"
+                    "Node processing failed, subtitle count: %d", subtitle_count
                 )
 
                 if subtitle_count >= 10:
                     # 三等分
-                    logger.info(f"Splitting node into 3 parts")
+                    logger.info("Splitting node into 3 parts")
                     node1, node2, node3 = current.split_into_three()
 
                     if prev is None:

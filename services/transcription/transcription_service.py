@@ -62,7 +62,7 @@ class TranscriptionService:
             return False, None, f"音频文件不存在: {audio_path}"
 
         for attempt in range(self.max_retries + 1):
-            logger.info(f"转写尝试 {attempt + 1}/{self.max_retries + 1}")
+            logger.info("转写尝试 %d/%d", attempt + 1, self.max_retries + 1)
 
             try:
                 # 创建转写器实例
@@ -72,7 +72,7 @@ class TranscriptionService:
                 srt_content = transcriber.transcribe(audio_path)
 
                 if not srt_content:
-                    logger.warning(f"转写结果为空")
+                    logger.warning("转写结果为空")
                     if attempt < self.max_retries:
                         logger.info("将进行重试...")
                         continue
@@ -85,7 +85,7 @@ class TranscriptionService:
                 )
 
                 if not quality_passed:
-                    logger.warning(f"质量检测失败")
+                    logger.warning("质量检测失败")
                     if attempt < self.max_retries:
                         logger.info("将进行重试...")
                         continue
@@ -97,7 +97,7 @@ class TranscriptionService:
                 return True, srt_content, None
 
             except Exception as e:
-                logger.error(f"转写尝试 {attempt + 1} 失败: {e}")
+                logger.exception("转写尝试 %d 失败", attempt + 1)
                 if attempt < self.max_retries:
                     logger.info("将进行重试...")
                 else:

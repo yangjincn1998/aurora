@@ -211,18 +211,21 @@ class CodeExtractor:
         # 第〇步：清洗噪音
         noises = self._parse_text(str(self.noise_path))
         cleaned_name = self._wash_noises(file_name, noises)
-        logger.info(f"Original name: '{file_name}' -> Cleaned name: '{cleaned_name}'")
+        logger.info(
+            "Original name: '%s' -> Cleaned name: '%s'", file_name, cleaned_name
+        )
 
         known_prefixes = self._parse_text(str(self.prefix_path))
         # 第一步：贪婪提取
         code_candidates = self._greedy_extract_codes(cleaned_name)
         if not code_candidates:
-            logger.warning(f"No potential codes found in '{cleaned_name}'.")
+            logger.warning("No potential codes found in '%s'.", cleaned_name)
             return None
-        logger.info(f"Found candidates: {code_candidates}")
+        logger.info("Found candidates: %s", code_candidates)
         if len(code_candidates) == 1:
             logger.info(
-                f"Only one candidate '{code_candidates[0]}' found, skipping validation."
+                "Only one candidate '%s' found, skipping validation.",
+                code_candidates[0],
             )
             code = code_candidates[0]
             prefix = code.split("-")[0]
@@ -231,16 +234,17 @@ class CodeExtractor:
             Path(self.prefix_path).write_text(
                 "\n".join(sorted(known_prefixes)), encoding="utf-8"
             )
-            logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+            logger.info("Successfully extract code`%s` of file: `%s`", code, file_name)
             return code
 
         # 第二步：根据前缀排序
         known_prefixes = self._parse_text(str(self.prefix_path))
         prioritized_candidates = self._filter_by_prefix(code_candidates, known_prefixes)
-        logger.info(f"Prioritized candidates: {prioritized_candidates}")
+        logger.info("Prioritized candidates: %s", prioritized_candidates)
         if len(prioritized_candidates) == 1:
             logger.info(
-                f"Only one prioritized candidate '{prioritized_candidates[0]}' found, skipping validation."
+                "Only one prioritized candidate '%s' found, skipping validation.",
+                prioritized_candidates[0],
             )
             code = prioritized_candidates[0]
             prefix = code.split("-")[0]
@@ -249,17 +253,17 @@ class CodeExtractor:
             Path(self.prefix_path).write_text(
                 "\n".join(sorted(known_prefixes)), encoding="utf-8"
             )
-            logger.info(f"Successfully extract code`{code}` of file: `{file_name}`")
+            logger.info("Successfully extract code`%s` of file: `%s`", code, file_name)
             return code
 
         # 第三步：在线验证
         for candidate in prioritized_candidates:
             for service in self.web_services:
-                logger.debug(f"Validating '{candidate}' with service: {service.url}")
+                logger.debug("Validating '%s' with service: %s", candidate, service.url)
                 try:
                     if service.validate_code(candidate):
                         logger.info(
-                            f"Validation successful! Final code is '{candidate}'."
+                            "Validation successful! Final code is '%s'.", candidate
                         )
                         code = candidate
                         prefix = code.split("-")[0]
@@ -274,12 +278,15 @@ class CodeExtractor:
                         return code
                 except HTTPException as e:
                     logger.warning(
-                        f"Web service {service.url} failed for code '{candidate}': {e}."
+                        "Web service %s failed for code '%s': %s.",
+                        service.url,
+                        candidate,
+                        e,
                     )
                     continue  # 尝试下一个 service
 
         logger.error(
-            f"All candidates failed online validation for file: '{file_name}'."
+            "All candidates failed online validation for file: '%s'.", file_name
         )
         return None
 
