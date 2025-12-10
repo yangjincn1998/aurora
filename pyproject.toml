@@ -5,11 +5,29 @@ description = "AV subtitle pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "demucs>=4.0.1",
-    "langfuse>=3.10.5",
-    "openai>=2.9.0",
-    "openai-whisper>=20250625",
-    "pylint>=4.0.4",
-    "python-dotenv>=1.2.1",
-    "pyyaml>=6.0.3",
+  "demucs>=4.0.1",
+  "langfuse>=3.10.5",
+  "openai>=2.9.0",
+  "openai-whisper>=20250625",
+  "pylint>=4.0.4",
+  "python-dotenv>=1.2.1",
+  "pyyaml>=6.0.3",
+  "sqlalchemy>=2.0.45",
 ]
+[tool.pylint.main]
+ignore-paths = [".venv", ".git", ".claude"]
+
+[tool.pylint.design]
+min-public-methods = 0
+max-args = 8
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "line-too-long",
+]
+
+[tool.black]
+line-length = 88

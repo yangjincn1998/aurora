@@ -11,7 +11,7 @@ def session():
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
-        poolclass=sqlalchemy.pool.StaticPool
+        poolclass=sqlalchemy.pool.StaticPool,
     )
 
     Base.metadata.create_all(engine)
