@@ -1,8 +1,22 @@
 from pathlib import Path
 from typing import Tuple
 
+import librosa
+import numpy
+import soundfile
+
 from services.denoise.denoiser import Denoiser
 from utils.logger import get_logger
+
+try:
+    from scipy import signal
+except ImportError:
+    signal = None
+
+try:
+    from spleeter.separator import Separator
+except ImportError:
+    Separator = None
 
 logger = get_logger(__name__)
 
@@ -41,8 +55,6 @@ class SpleeterDenoiserFixed(Denoiser):
         """
         if self._separator is None:
             try:
-                from spleeter.separator import Separator
-
                 logger.info("正在初始化Spleeter分离器，模型: %s", self.model_type)
                 self._separator = Separator(self.model_type)
                 logger.info("Spleeter分离器初始化成功")
@@ -100,8 +112,8 @@ class SpleeterDenoiserFixed(Denoiser):
             if self.use_fallback:
                 logger.info("Spleeter处理失败，尝试使用备用降噪方法...")
                 return self._fallback_denoise(input_path, output_path)
-            else:
-                return False, "Spleeter降噪处理失败且未启用备用方法"
+
+            return False, "Spleeter降噪处理失败且未启用备用方法"
 
         except Exception as e:
             error_msg = f"Spleeter降噪处理失败: {str(e)}"
@@ -118,9 +130,6 @@ class SpleeterDenoiserFixed(Denoiser):
                 return False
 
             # 加载音频文件
-            import librosa
-            import numpy as np
-
             logger.info("正在加载音频文件...")
             waveform, sample_rate = librosa.load(
                 input_path, sr=None, mono=False, duration=self.max_duration
@@ -128,7 +137,7 @@ class SpleeterDenoiserFixed(Denoiser):
 
             # 确保立体声格式
             if len(waveform.shape) == 1:
-                waveform = np.array([waveform, waveform])
+                waveform = numpy.array([waveform, waveform])
                 logger.info("转换单声道为立体声")
 
             # 确保正确的形状格式
@@ -183,11 +192,6 @@ class SpleeterDenoiserFixed(Denoiser):
         try:
             logger.info("使用备用降噪方法...")
 
-            import librosa
-            import soundfile as sf
-            import numpy as np
-            from scipy import signal
-
             # 加载音频
             audio, sr = librosa.load(input_path, sr=None)
 
@@ -203,7 +207,7 @@ class SpleeterDenoiserFixed(Denoiser):
             compressed = np.tanh(gated * 0.8)
 
             # 保存结果
-            sf.write(output_path, compressed, sr)
+            soundfile.write(output_path, compressed, sr)
 
             logger.info(f"备用降噪完成，结果保存到: {output_path}")
             return True, f"使用备用方法降噪成功，输出文件: {output_path}"
@@ -220,24 +224,21 @@ class SpleeterDenoiserFixed(Denoiser):
         保存音频数据到文件
         """
         try:
-            import soundfile as sf
-            import numpy as np
-
-            if isinstance(audio_data, np.ndarray):
+            if isinstance(audio_data, numpy.ndarray):
                 # 处理不同的音频数据形状
                 if len(audio_data.shape) == 1:
                     # 单声道
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data, sample_rate, subtype="PCM_16"
                     )
                 elif audio_data.shape[0] == 1:
                     # 单声道，但有多余的维度
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data[0], sample_rate, subtype="PCM_16"
                     )
                 elif audio_data.shape[1] == 1:
                     # 单声道，转置的
-                    sf.write(
+                    soundfile.write(
                         str(output_path),
                         audio_data[:, 0],
                         sample_rate,
@@ -247,7 +248,7 @@ class SpleeterDenoiserFixed(Denoiser):
                     # 立体声或多声道
                     if audio_data.shape[0] < audio_data.shape[1]:
                         audio_data = audio_data.T
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data, sample_rate, subtype="PCM_16"
                     )
 

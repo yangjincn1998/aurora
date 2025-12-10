@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 
 from domain.movie import Movie, Metadata, BilingualText, Actor
 from services.web_request.web_service import WebService
+from utils.actor_parser import parse_actor_string
 from utils.singleton import singleton
 
 logger = getLogger(__name__)
@@ -295,8 +296,6 @@ class JavBusWebService(WebService):
 
         # 提取演员
         # 演员在包含class="star-show"的p标签后面的p标签中
-        from utils.actor_parser import parse_actor_string
-
         for i, p_tag in enumerate(all_p_tags):
             # 查找包含"演員"或"star-show"的header标签
             if p_tag.get("class") == ["star-show"] or (

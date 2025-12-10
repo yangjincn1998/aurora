@@ -9,6 +9,7 @@ from typing import List, Literal, Optional, Generator
 
 from domain.enums import PiplinePhase, StageStatus, MetadataType
 from domain.movie import Video, Movie, Metadata, Actor, Term
+from domain.subtitle import BilingualText
 
 
 class DatabaseManager:
@@ -361,8 +362,6 @@ class DatabaseManager:
                 return None
 
             # 2. 构建 Metadata 对象
-            from domain.subtitle import BilingualText
-
             metadata = Metadata()
 
             # 标题
@@ -799,31 +798,32 @@ class DatabaseManager:
                 )
                 row = cursor.fetchone()
                 return row[0] if row and row[0] else None
-            elif entity_type == MetadataType.SYNOPSIS:
+
+            if entity_type == MetadataType.SYNOPSIS:
                 cursor.execute(
                     "select synopsis_zh from movies where synopsis_ja = ?",
                     (original_name,),
                 )
                 row = cursor.fetchone()
                 return row[0] if row and row[0] else None
-            else:
-                # 其他实体从对应表查询
-                table_map = {
-                    MetadataType.DIRECTOR: "directors",
-                    MetadataType.ACTOR: "actor_names",
-                    MetadataType.CATEGORY: "categories",
-                    MetadataType.STUDIO: "studios",
-                }
-                table_name = table_map.get(entity_type)
-                if not table_name:
-                    return None
 
-                cursor.execute(
-                    f"select name_zh from {table_name} where name_ja = ?",
-                    (original_name,),
-                )
-                row = cursor.fetchone()
-                return row[0] if row and row[0] else None
+            # 其他实体从对应表查询
+            table_map = {
+                MetadataType.DIRECTOR: "directors",
+                MetadataType.ACTOR: "actor_names",
+                MetadataType.CATEGORY: "categories",
+                MetadataType.STUDIO: "studios",
+            }
+            table_name = table_map.get(entity_type)
+            if not table_name:
+                return None
+
+            cursor.execute(
+                f"select name_zh from {table_name} where name_ja = ?",
+                (original_name,),
+            )
+            row = cursor.fetchone()
+            return row[0] if row and row[0] else None
         finally:
             if internal_cursor and conn:
                 conn.close()

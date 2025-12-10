@@ -16,14 +16,17 @@ def recursive_replace(data_structure, replacements):
         for key, value in data_structure.items():
             new_dict[key] = recursive_replace(value, replacements)
         return new_dict
-    elif isinstance(data_structure, list):
+
+    if isinstance(data_structure, list):
         return [recursive_replace(item, replacements) for item in data_structure]
-    elif isinstance(data_structure, set):
+
+    if isinstance(data_structure, set):
         return {recursive_replace(item, replacements) for item in data_structure}
-    elif isinstance(data_structure, str) and data_structure in replacements:
+
+    if isinstance(data_structure, str) and data_structure in replacements:
         return replacements[data_structure]
-    else:
-        return data_structure
+
+    return data_structure
 
 
 def build_messages(

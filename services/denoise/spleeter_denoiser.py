@@ -1,8 +1,17 @@
 from pathlib import Path
 from typing import Tuple
 
+import librosa
+import numpy
+import soundfile
+
 from services.denoise.denoiser import Denoiser
 from utils.logger import get_logger
+
+try:
+    from spleeter.separator import Separator
+except ImportError:
+    Separator = None
 
 logger = get_logger(__name__)
 
@@ -56,8 +65,6 @@ class SpleeterDenoiser(Denoiser):
         """
         if self._separator is None:
             try:
-                from spleeter.separator import Separator
-
                 logger.info(f"正在初始化Spleeter分离器，模型: {self.model_type}")
                 # 使用兼容的参数创建分离器
                 self._separator = Separator(self.model_type)
@@ -129,8 +136,6 @@ class SpleeterDenoiser(Denoiser):
             self._initialize_separator()
 
             # 加载音频文件
-            import librosa
-            import numpy as np
 
             logger.info("正在加载音频文件...")
             waveform, sample_rate = librosa.load(input_path, sr=None, mono=False)
@@ -138,7 +143,7 @@ class SpleeterDenoiser(Denoiser):
             # 确保立体声格式
             if len(waveform.shape) == 1:
                 # 转换单声道为立体声
-                waveform = np.array([waveform, waveform])
+                waveform = numpy.array([waveform, waveform])
                 logger.info("转换单声道为立体声")
 
             # 确保正确的形状格式
@@ -233,25 +238,22 @@ class SpleeterDenoiser(Denoiser):
             sample_rate: 采样率
         """
         try:
-            import soundfile as sf
-            import numpy as np
-
             # 确保音频数据是正确的格式
-            if isinstance(audio_data, np.ndarray):
+            if isinstance(audio_data, numpy.ndarray):
                 # 处理不同的音频数据形状
                 if len(audio_data.shape) == 1:
                     # 单声道
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data, sample_rate, subtype="PCM_16"
                     )
                 elif audio_data.shape[0] == 1:
                     # 单声道，但有多余的维度
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data[0], sample_rate, subtype="PCM_16"
                     )
                 elif audio_data.shape[1] == 1:
                     # 单声道，转置的
-                    sf.write(
+                    soundfile.write(
                         str(output_path),
                         audio_data[:, 0],
                         sample_rate,
@@ -262,7 +264,7 @@ class SpleeterDenoiser(Denoiser):
                     # 确保形状是 (samples, channels)
                     if audio_data.shape[0] < audio_data.shape[1]:
                         audio_data = audio_data.T
-                    sf.write(
+                    soundfile.write(
                         str(output_path), audio_data, sample_rate, subtype="PCM_16"
                     )
 
@@ -273,8 +275,6 @@ class SpleeterDenoiser(Denoiser):
         except ImportError:
             # 如果没有soundfile，尝试使用其他方法
             try:
-                import librosa
-
                 # 确保数据格式正确
                 if (
                     len(audio_data.shape) > 1
@@ -283,7 +283,7 @@ class SpleeterDenoiser(Denoiser):
                     audio_data = audio_data.T
                 if len(audio_data.shape) > 1 and audio_data.shape[1] == 1:
                     audio_data = audio_data[:, 0]
-                sf.write(str(output_path), audio_data, sample_rate)
+                soundfile.write(str(output_path), audio_data, sample_rate)
                 logger.info(f"使用librosa保存音轨 '{track_name}' 到: {output_path}")
             except ImportError:
                 raise ImportError("无法导入音频保存库，请安装 soundfile 或 librosa")

@@ -2,6 +2,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Tuple
 
+import librosa
+import noisereduce
+import numpy
+import soundfile
 import yaml
 
 from utils.logger import get_logger
@@ -43,8 +47,8 @@ class Denoiser(ABC):
 
         if denoiser_type == "noisereduce":
             return NoiseReduceDenoiser.from_config(config)
-        else:
-            raise ValueError(f"Unknown denoiser type: {denoiser_type}")
+
+        raise ValueError(f"Unknown denoiser type: {denoiser_type}")
 
     @classmethod
     def from_yaml_config(cls, yaml_path: str) -> "Denoiser":
@@ -128,11 +132,6 @@ class NoiseReduceDenoiser(Denoiser):
             (是否成功, 失败原因或成功信息)
         """
         try:
-            import librosa
-            import noisereduce as nr
-            import soundfile as sf
-            import numpy as np
-
             if not Path(input_path).exists():
                 return False, f"输入音频文件不存在: {input_path}"
 
@@ -166,7 +165,7 @@ class NoiseReduceDenoiser(Denoiser):
 
                 if len(segment) > noise_samples * 2:
                     noise_clip = segment[:noise_samples]
-                    denoised_segment = nr.reduce_noise(
+                    denoised_segment = noisereduce.reduce_noise(
                         y=segment,
                         sr=sample_rate,
                         y_noise=noise_clip,
@@ -181,10 +180,10 @@ class NoiseReduceDenoiser(Denoiser):
                 logger.info(f"处理片段 {i+1}/{total_segments}")
 
             # 合并所有片段
-            denoised_audio = np.concatenate(denoised_segments)
+            denoised_audio = numpy.concatenate(denoised_segments)
 
             # 保存结果
-            sf.write(str(output_path), denoised_audio, sample_rate)
+            soundfile.write(str(output_path), denoised_audio, sample_rate)
 
             logger.info(f"降噪完成，结果保存到: {output_path}")
             return True, f"降噪成功，输出文件: {output_path}"

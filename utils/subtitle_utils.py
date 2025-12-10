@@ -1,6 +1,8 @@
 import json
 from typing import List
 
+from domain.context import TranslateContext
+from domain.results import ProcessResult
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -189,8 +191,6 @@ def update_translate_context(context, chat_result):
                 logger.info("Updated term: %s -> %s", term_ja, term_ch)
 
         # 返回新的上下文对象（保持原有结构）
-        from domain.context import TranslateContext
-
         return TranslateContext(
             task_type=context.task_type,
             metadata=context.metadata,
@@ -217,8 +217,6 @@ def aggregate_successful_results(
     Returns:
         ProcessResult: 聚合后的处理结果。
     """
-    from domain.results import ProcessResult
-
     all_content_parts = []
     all_differences = []
     all_terms = []

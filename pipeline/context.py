@@ -4,6 +4,7 @@
 """
 
 import os
+import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
@@ -48,8 +49,6 @@ class PipelineContext:
             raise RuntimeError("Transaction already in progress")
 
         # 创建一个新的连接和cursor，保持连接打开
-        import sqlite3
-
         self._current_connection = sqlite3.connect(self.database_manager.db_path)
         self._current_connection.row_factory = sqlite3.Row
         self._current_cursor = self._current_connection.cursor()

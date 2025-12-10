@@ -37,7 +37,7 @@ class MissAvWebService(WebService):
     def available(self) -> bool:
         return self._available
 
-    def request(self, av_code: str, lang: str) -> str:
+    def request(self, av_code: str, lang: str, **kwargs) -> str:
         """根据 AV 番号和语言，向指定网站发送请求。
 
         URL 格式: https://missav.live/dm31/{lang}/{av_code}

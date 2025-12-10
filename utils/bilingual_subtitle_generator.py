@@ -102,7 +102,8 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
     def _get_translated_text(bilingual_item):
         if hasattr(bilingual_item, "translated") and bilingual_item.translated:
             return bilingual_item.translated
-        elif hasattr(bilingual_item, "original") and bilingual_item.original:
+
+        if hasattr(bilingual_item, "original") and bilingual_item.original:
             return bilingual_item.original
         return ""
 
@@ -116,7 +117,8 @@ def _generate_intro_metadata(metadata: Any) -> List[str]:
                     if _get_translated_text(item)
                 ]
             )
-        elif hasattr(bilingual_list, "translated"):
+
+        if hasattr(bilingual_list, "translated"):
             return ", ".join(bilingual_list.translated)
         return ""
 

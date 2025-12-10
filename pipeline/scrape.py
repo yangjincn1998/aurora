@@ -191,7 +191,8 @@ class ScrapeStage(MoviePipelineStage):
                 context, data.original, metadata_type, task_type
             )
             return data
-        elif isinstance(data, BilingualList) and (
+
+        if isinstance(data, BilingualList) and (
             not data.translated or len(data.translated) != len(data.original)
         ):
             logger.info("Processing bilingual list object...")
@@ -204,46 +205,51 @@ class ScrapeStage(MoviePipelineStage):
                 translated_list.append(translated if translated else item)
             data.translated = translated_list
             return data
-        elif isinstance(data, list):
+
+        if isinstance(data, list):
             return [
                 self._translate_data_structure(item, context, metadata_type, task_type)
                 for item in data
             ]
-        elif isinstance(data, dict):
+
+        if isinstance(data, dict):
             return {
                 key: self._translate_data_structure(
                     item, context, metadata_type, task_type
                 )
                 for key, item in data.items()
             }
-        elif isinstance(data, tuple):
+
+        if isinstance(data, tuple):
             return (
                 self._translate_data_structure(item, context, metadata_type, task_type)
                 for item in data
             )
-        elif isinstance(data, set):
+
+        if isinstance(data, set):
             return {
                 self._translate_data_structure(item, context, metadata_type, task_type)
                 for item in data
             }
-        elif isinstance(data, (str, int, float, bool)):
+
+        if isinstance(data, (str, int, float, bool)):
             return data
-        else:
-            # Check if data is a dataclass before calling fields()
-            if is_dataclass(data):
-                for field in fields(data):
-                    value = getattr(data, field.name)
-                    setattr(
-                        data,
-                        field.name,
-                        self._translate_data_structure(
-                            value, context, metadata_type, task_type
-                        ),
-                    )
-                return data
-            else:
-                # If it's not a dataclass, just return the data as-is
-                return data
+
+        # Check if data is a dataclass before calling fields()
+        if is_dataclass(data):
+            for field in fields(data):
+                value = getattr(data, field.name)
+                setattr(
+                    data,
+                    field.name,
+                    self._translate_data_structure(
+                        value, context, metadata_type, task_type
+                    ),
+                )
+            return data
+
+        # If it's not a dataclass, just return the data as-is
+        return data
 
     @observe
     def execute(self, movie: Movie, context: PipelineContext):
