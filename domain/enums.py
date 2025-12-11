@@ -129,3 +129,17 @@ class PiplinePhase(Enum):
     CORRECT_SUBTITLE = "pipeline_phase_correct_subtitle"
     TRANSLATE_SUBTITLE = "pipeline_phase_translate_subtitle"
     BILINGUAL_SUBTITLE = "pipeline_phase_bilingual_subtitle"
+
+
+VIDEO_SUFFIXES = {
+    "mp4",
+    "mkv",
+    "avi",
+    "mov",
+    "wmv",
+    "flv",
+    "webm",
+    "mpg",
+    "mpeg",
+    "3gp",
+}

@@ -7,12 +7,12 @@ from sqlalchemy import (
     String,
     ForeignKey,
     MetaData,
-    Integer,
     UniqueConstraint,
     DateTime,
     Date,
     Table,
     Column,
+    event,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import (
@@ -21,9 +21,10 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
     attribute_mapped_collection,
+    validates,
 )
 
-from domain.enums import StageStatus
+from domain.enums import StageStatus, VIDEO_SUFFIXES
 
 convention = {
     "ix": "ix_%(column_0_label)s",
@@ -35,7 +36,6 @@ convention = {
 metadata_obj = MetaData(naming_convention=convention)
 
 
-# todo: 把所有 set[Movie]改变为list[Movie]， 按发行日期排序
 def get_bj_time():
     return datetime.now(timezone(timedelta(hours=8)))
 
@@ -88,9 +88,6 @@ class GlossaryHitsIn(Base, TimestampMixin):
         Uuid(as_uuid=True), ForeignKey("movies.id")
     )
 
-    glossary: Mapped["Glossary"] = relationship(back_populates="glossary_hits")
-    movie: Mapped["Movie"] = relationship(back_populates="glossary_hits")
-
 
 class Actor(Base, TimestampMixin):
     __tablename__ = "actors"
@@ -103,8 +100,8 @@ class Actor(Base, TimestampMixin):
         String(10), nullable=False
     )
 
-    names: Mapped[set["ActorName"]] = relationship(back_populates="actor")
-    movies: Mapped[set["Movie"]] = relationship(secondary=act_in)
+    names: Mapped[list["ActorName"]] = relationship(back_populates="actor")
+    movies: Mapped[list["Movie"]] = relationship(secondary=act_in)
     videos = association_proxy("movies", "videos")
 
 
@@ -125,8 +122,6 @@ class ActorName(Base, TimestampMixin):
     sch_text: Mapped[str] = mapped_column(String, nullable=True)
 
     actor: Mapped["Actor"] = relationship(back_populates="names")
-    movies = association_proxy("actor", "movies")
-    videos = association_proxy("actor", "videos")
 
 
 class Movie(Base, TimestampMixin):
@@ -134,16 +129,22 @@ class Movie(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("label", "number", name="uq_movies_label_number"),
     )
+    ANONYMOUS_LABEL = "UNKNOWN"
+
+    def __init__(self, **kwargs):
+        if "label" not in kwargs:
+            kwargs["label"] = self.ANONYMOUS_LABEL
+        super().__init__(**kwargs)
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
     label: Mapped[str] = mapped_column(String, nullable=False)
-    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    number: Mapped[str] = mapped_column(String, nullable=False)
 
-    title_ja: Mapped[str] = mapped_column(String, nullable=False)
-    title_zh: Mapped[str] = mapped_column(String, nullable=False)
+    title_ja: Mapped[str] = mapped_column(String, nullable=True)
+    title_zh: Mapped[str] = mapped_column(String, nullable=True)
 
     release_date: Mapped[date] = mapped_column(Date, nullable=True)
     director_id: Mapped[uuid.UUID] = mapped_column(
@@ -156,14 +157,60 @@ class Movie(Base, TimestampMixin):
     synopsis_ja: Mapped[str] = mapped_column(String, nullable=True)
     synopsis_zh: Mapped[str] = mapped_column(String, nullable=True)
 
-    videos: Mapped[set["Video"]] = relationship(back_populates="movie")
-    terms: Mapped[set["Term"]] = relationship(back_populates="movie")
-    glossary_hits: Mapped[set["GlossaryHitsIn"]] = relationship(back_populates="movie")
-    glossaries = association_proxy("glossary_hits", "glossary")
+    videos: Mapped[list["Video"]] = relationship(back_populates="movie")
+    terms: Mapped[list["Term"]] = relationship(back_populates="movie")
+    glossaries: Mapped[list["Glossary"]] = relationship(
+        back_populates="hit_movies", secondary="glossary_hits_in"
+    )
     director: Mapped["Director"] = relationship(back_populates="movies")
     studio: Mapped["Studio"] = relationship(back_populates="movies")
     actors: Mapped[list["Actor"]] = relationship(secondary=act_in)
     categories: Mapped[list["Category"]] = relationship(secondary=is_a_movie_of)
+
+    @property
+    def code(self) -> str:
+        return f"{self.label}-{self.number}"
+
+    @property
+    def is_anonymous(self) -> bool:
+        return self.label == self.ANONYMOUS_LABEL
+
+    @validates("label")
+    def validate_label(self, key, value: str):
+        if value is None:
+            return self.ANONYMOUS_LABEL
+        return value.upper()
+
+    @validates("number")
+    def validate_number(self, key, value: str):
+        is_sha256 = len(value) == 64
+        is_digit = value.isdigit()
+
+        if not is_digit and not is_sha256:
+            raise ValueError(
+                "Movie number must be all digits or a 64-character SHA256 hash."
+            )
+        return value
+
+
+def validate_movie_integrity(mapper, connection, target: Movie):
+    """
+    在插入或更新前，确保 label 和 number 的逻辑一致性。
+    target 就是当前的 Movie 实例。
+    如果 label 是 "Unknown"，则 number 必须是 SHA256 哈希。
+    """
+    if target.label == target.ANONYMOUS_LABEL:
+        if len(target.number) != 64:
+            raise ValueError(
+                "For anonymous movies, number must be a 64-character SHA256 hash."
+            )
+    else:
+        if not target.number.isdigit():
+            raise ValueError("For non-anonymous movies, number must be all digits.")
+
+
+event.listen(Movie, "before_insert", validate_movie_integrity)
+event.listen(Movie, "before_update", validate_movie_integrity)
 
 
 class Category(Base, TimestampMixin):
@@ -189,7 +236,6 @@ class Director(Base, TimestampMixin):
     sch_text: Mapped[str] = mapped_column(String, nullable=True)
 
     movies: Mapped[list["Movie"]] = relationship(back_populates="director")
-    videos = association_proxy("movies", "videos")
 
 
 class Studio(Base, TimestampMixin):
@@ -199,7 +245,7 @@ class Studio(Base, TimestampMixin):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     jap_text: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    sch_text: Mapped[str] = mapped_column(String, nullable=True)
+    sch_text: Mapped[str | None] = mapped_column(String, nullable=True)
 
     movies: Mapped[list["Movie"]] = relationship(back_populates="studio")
     videos = association_proxy("movies", "videos")
@@ -213,7 +259,7 @@ class Video(Base, TimestampMixin):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     movie_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("movies.id")
+        Uuid(as_uuid=True), ForeignKey("movies.id"), nullable=True
     )
 
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -227,6 +273,21 @@ class Video(Base, TimestampMixin):
         collection_class=attribute_mapped_collection("stage_name"),
         cascade="all, delete-orphan",
     )
+
+    @validates("sha256")
+    def validate_sha256(self, key, value: str):
+        if len(value) != 64 or not all(c in "0123456789abcdefABCDEF" for c in value):
+            raise ValueError("SHA256 must be a 64-character hexadecimal string.")
+        return value.lower()
+
+    @validates("suffix")
+    def validate_suffix(self, key, value: str):
+        # VIDEO_SUFFIXES = {
+        #     "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "3gp"
+        # }
+        if value.lower() not in VIDEO_SUFFIXES:
+            raise ValueError(f"Unsupported video suffix: {value}")
+        return value.lower()
 
 
 class VideoStageStatus(Base, TimestampMixin):
@@ -278,7 +339,6 @@ class Glossary(Base, TimestampMixin):
     sch_text: Mapped[str] = mapped_column(String, nullable=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
 
-    glossary_hits: Mapped[list["GlossaryHitsIn"]] = relationship(
-        back_populates="glossary"
+    hit_movies: Mapped[list["Movie"]] = relationship(
+        back_populates="glossaries", secondary="glossary_hits_in"
     )
-    hit_movies = association_proxy("glossary_hits", "movie")
