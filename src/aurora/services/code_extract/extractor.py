@@ -20,7 +20,7 @@ class CodeExtractor:
       第三步，向网站发送报文，确定是否成功
     Attributes：
         web_services(List[WebService]): 发送报文服务的WebService
-        prefix_path(str): 记录前缀名的文件，目前写死为service/code_extract/prefix.txt.txt
+        prefix_path(str): 记录前缀名的文件，目前写死为service/code_extract/prefix.txt
         noise_path(str): 记录噪声的文件, 目前写死为service/code_extract/noise.txt
     """
 
