@@ -1,8 +1,11 @@
 .env
 .idea
 .claude
-./__pycache
+__pycache__/
+*.py[cod]
+*$py.class
 .run
-output/*.wav
 logs
+output
 *.pyc
+nul

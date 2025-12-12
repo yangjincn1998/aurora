@@ -10,7 +10,7 @@ from aurora.pipeline.correct import CorrectStage
 from aurora.services.code_extract.extractor import CodeExtractor
 from aurora.services.pipeline.database_manager import DatabaseManager
 from aurora.services.translation.orchestrator import TranslateOrchestrator
-from aurora.utils.file_utils import calculate_partial_sha256
+from aurora.utils.file_utils import sample_and_calculate_sha256
 from aurora.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -174,7 +174,7 @@ class Pipeline:
         movies_map: Dict[str, Movie] = {}
         for video in video_to_process:
             video_path = str(video.resolve())
-            partial_hash = calculate_partial_sha256(video_path)
+            partial_hash = sample_and_calculate_sha256(video_path)
             if not partial_hash:
                 logger.warning(
                     "Could not calculate SHA256 for %s. Skipping this file.", video.name

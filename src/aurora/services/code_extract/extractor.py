@@ -198,7 +198,7 @@ class CodeExtractor:
         else:
             return unknown
 
-    def extract_av_code(self, file_name: str) -> Optional[str]:
+    def extract_av_code(self, file_name: str) -> tuple[str, str] | None:
         """
         供给外部调用的主方法，按顺序执行完整的提取和验证流程。
 

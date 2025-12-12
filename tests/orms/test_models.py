@@ -1,5 +1,6 @@
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -19,58 +20,24 @@ from src.aurora.orms.models import (
 from src.aurora.orms.models import VideoStageStatus
 
 
-def test_create_movie(session):
-    movie = Movie(
-        label="ABC",
-        number="123",
-        title_ja="テスト映画",
-        title_zh="测试电影",
-        release_date=date(2000, 1, 1),
+@pytest.fixture
+def mock_file_path():
+    return Path("path/to/video.mp4")
+
+
+@pytest.fixture
+def sample_video(session, sha256):
+    video = Video(
+        sha256=sha256,
+        filename="test_videos.mp4",
+        suffix="mp4",
+        absolute_path="/path/to/test_videos.mp4",
     )
-
-    session.add(movie)
+    session.add(video)
     session.commit()
-    saved = session.scalar(select(Movie))
-
-    assert saved is not None
-    assert saved.label == "ABC"
-    assert saved.number == "123"
-    assert saved.code == "ABC-123"
-
-
-def test_create_movie_with_lowercase_label(session):
-    movie = Movie(
-        label="abc",
-        number="123",
-    )
-
-    session.add(movie)
+    yield video
+    session.delete(video)
     session.commit()
-    saved = session.scalar(select(Movie))
-
-    assert saved is not None
-    assert saved.code == "ABC-123"
-
-
-def test_create_invalid_code(session):
-    with pytest.raises(ValueError):
-        movie = Movie(
-            label="ABC",
-            number="12A3",
-        )
-        session.add(movie)
-        session.commit()
-
-
-def test_create_movie_with_unknown_code(session):
-    sha256 = "1234567890abcdef" * 4  # 64 chars
-    movie = Movie(number=sha256)
-    session.add(movie)
-    session.commit()
-    saved = session.scalar(select(Movie))
-
-    assert saved is not None
-    assert saved.is_anonymous
 
 
 @pytest.fixture
@@ -88,77 +55,233 @@ def sample_movie(session):
     session.commit()
 
 
-def test_video_movie_relationship(session, sample_movie):
-    video = Video(
-        sha256="1234567890abcdef" * 4,
-        filename="test_video.mp4",
-        absolute_path="/path/to/test_video.mp4",
-        suffix="mp4",
-    )
-    video.movie = sample_movie
+class TestMovie:
+    def test_create_movie(self, session):
+        movie = Movie(
+            label="ABC",
+            number="123",
+            title_ja="テスト映画",
+            title_zh="测试电影",
+            release_date=date(2000, 1, 1),
+        )
 
-    session.add(video)
-    session.commit()
-    saved = session.scalar(select(Video))
+        session.add(movie)
+        session.commit()
+        saved = session.scalar(select(Movie))
 
-    assert saved is not None
-    assert saved in sample_movie.videos
-    assert saved.filename == "test_video.mp4"
-    assert saved.movie_id == sample_movie.id
+        assert saved is not None
+        assert saved.label == "ABC"
+        assert saved.number == "123"
+        assert saved.code == "ABC-123"
+
+    def test_create_movie_with_lowercase_label(self, session):
+        movie = Movie(
+            label="abc",
+            number="123",
+        )
+
+        session.add(movie)
+        session.commit()
+        saved = session.scalar(select(Movie))
+
+        assert saved is not None
+        assert saved.code == "ABC-123"
+
+    def test_create_movie_with_invalid_code(self, session):
+        with pytest.raises(ValueError):
+            movie = Movie(
+                label="ABC",
+                number="12A3",
+            )
+            session.add(movie)
+            session.commit()
+
+    def test_create_movie_with_unknown_code(self, session):
+        sha256 = "1234567890abcdef" * 4  # 64 chars
+        movie = Movie(number=sha256)
+        session.add(movie)
+        session.commit()
+        saved = session.scalar(select(Movie))
+
+        assert saved is not None
+        assert saved.is_anonymous
+
+    def test_find_standard_movie(self, session):
+        label = "ABC"
+        number = "123"
+
+        movie = Movie.find_standard_movie(label, number, session)
+        assert movie is None
+
+        session.add(Movie(label=label, number=number))
+        session.commit()
+
+        movie = Movie.find_standard_movie(label, number, session)
+        assert movie is not None
+
+    def test_find_anonymous_movie(self, session, sha256):
+        movie = Movie.find_anonymous_movie(sha256, session)
+
+        assert movie is None
+        session.add(Movie(number=sha256))
+        session.commit()
+        movie = Movie.find_anonymous_movie(sha256, session)
+        assert movie is not None
+
+    def test_get_or_create_standard_movie(self, session):
+        label = "ABC"
+        number = "123"
+
+        movie = Movie.get_or_create_standard_movie(label, number, session)
+        assert movie is not None
+        assert movie.code == "ABC-123"
+        session.delete(movie)
+        session.commit()
+
+        session.add(Movie(label=label, number=number, title_ja="test_title_ja"))
+        session.commit()
+        movie = Movie.get_or_create_standard_movie(label, number, session)
+        assert movie.code == "ABC-123"
+        assert movie.title_ja == "test_title_ja"
+
+    def test_get_or_create_anonymous_movie(self, session, sha256, sample_video):
+        movie = Movie.get_or_create_anonymous_movie(sha256, session)
+        assert movie.is_anonymous
+        session.delete(movie)
+        session.commit()
+
+        movie = Movie(number=sha256)
+        sample_video.movie = movie
+        session.add_all([movie, sample_video])
+        session.commit()
+
+        movie = Movie.get_or_create_anonymous_movie(sha256, session)
+        assert movie.is_anonymous
+        assert sample_video in movie.videos
 
 
-def test_validate_video_sha256(session, sample_movie):
-    with pytest.raises(ValueError):
+class TestVideo:
+    def test_video_movie_relationship(self, session, sample_movie):
         video = Video(
-            movie_id=sample_movie.id,
-            sha256="invalid_sha256_hash",
+            sha256="1234567890abcdef" * 4,
             filename="test_video.mp4",
             absolute_path="/path/to/test_video.mp4",
             suffix="mp4",
         )
+        video.movie = sample_movie
+
         session.add(video)
         session.commit()
+        saved = session.scalar(select(Video))
 
+        assert saved is not None
+        assert saved in sample_movie.videos
+        assert saved.filename == "test_video.mp4"
+        assert saved.movie_id == sample_movie.id
 
-def test_video_suffix_validation(session, sample_movie):
-    with pytest.raises(ValueError):
+    def test_validate_video_sha256(self, session, sample_movie):
+        with pytest.raises(ValueError):
+            video = Video(
+                movie_id=sample_movie.id,
+                sha256="invalid_sha256_hash",
+                filename="test_video.mp4",
+                absolute_path="/path/to/test_video.mp4",
+                suffix="mp4",
+            )
+            session.add(video)
+            session.commit()
+
+    def test_video_suffix_validation(self, session, sample_movie):
+        with pytest.raises(ValueError):
+            video = Video(
+                movie_id=sample_movie.id,
+                sha256="1234567890abcdef" * 4,
+                filename="test_video.unknown",
+                absolute_path="/path/to/test_video.unknown",
+                suffix="unknown",
+            )
+            session.add(video)
+            session.commit()
+
+    def test_video_stage_unique_constraint(self, session, sample_movie):
+        """确保同一个视频的同一个阶段不能有两条记录"""
         video = Video(
-            movie_id=sample_movie.id,
-            sha256="1234567890abcdef" * 4,
-            filename="test_video.unknown",
-            absolute_path="/path/to/test_video.unknown",
-            suffix="unknown",
+            sha256="b" * 64,
+            filename="t2.mp4",
+            absolute_path="/t",
+            suffix="mp4",
+            movie=sample_movie,
         )
         session.add(video)
         session.commit()
 
+        # 手动添加两条冲突记录 (绕过 ORM 字典覆盖机制，直接测数据库约束)
+        s1 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="PENDING")
+        s2 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="FAILED")
 
-@pytest.fixture
-def sample_videos(session, sample_movie):
-    v1 = Video(
-        sha256="1234567890abcdef" * 4,
-        filename="test_video.mp4",
-        absolute_path="/path/to/test_video.mp4",
-        suffix="mp4",
-        movie=sample_movie,
-    )
-    v2 = Video(
-        sha256="abcdef1234567890" * 4,
-        filename="test_video2.mkv",
-        absolute_path="/path/to/test_video2.mkv",
-        suffix="mkv",
-        movie=sample_movie,
-    )
-    session.add_all([v1, v2])
-    session.commit()
-    saves = session.scalars(select(Video)).all()
-    for save in saves:
-        session.refresh(save)
-    yield saves
-    for save in saves:
-        session.delete(save)
-    session.commit()
+        session.add_all([s1, s2])
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
 
+    def test_video_stage_dictionary_mapping(self, session, sample_movie):
+        video = Video(
+            sha256="a" * 64,
+            filename="test.mp4",
+            absolute_path="/tmp/test.mp4",
+            suffix="mp4",
+            movie=sample_movie,
+        )
+
+        # 1. 测试通过字典 key 添加状态
+        stage_transcribe = VideoStageStatus(
+            stage_name="transcribe", status=StageStatus.SUCCESS.value
+        )
+        video.stages["transcribe"] = stage_transcribe
+
+        session.add(video)
+        session.commit()
+
+        # 2. 验证是否可以通过 key 读取
+        saved_video = session.scalar(select(Video).where(Video.filename == "test.mp4"))
+        assert "transcribe" in saved_video.stages
+        assert saved_video.stages["transcribe"].status == StageStatus.SUCCESS.value
+
+        # 3. 测试级联删除 (delete-orphan)
+        # 从字典中移除，应该导致数据库行被删除
+        del saved_video.stages["transcribe"]
+        session.commit()
+
+        # 验证数据库中确实没了
+        count = session.query(VideoStageStatus).count()
+        assert count == 0
+
+    def test_update_video_absolute_path(self, session, sample_video):
+        sha256 = sample_video.sha256
+        sample_video.update_video_absolute_path(Path("path/to/video.mp4"), session)
+
+        saved = session.scalar(select(Video).where(Video.sha256 == sha256))
+        assert saved.suffix == "mp4"
+        assert saved.absolute_path == str(Path("path/to/video.mp4"))
+        assert saved.filename == "video"
+
+    def test_find_video_by_sha256(self, session, sample_video):
+        sha256 = sample_video.sha256
+        found = Video.find_video_by_sha256(sha256, session)
+        assert found == sample_video
+
+        session.delete(sample_video)
+        session.commit()
+        found = Video.find_video_by_sha256(sha256, session)
+        assert found is None
+
+    def test_create_video(self, sample_movie, session, sha256, mock_file_path):
+        video = Video.create_or_update_video(mock_file_path, sha256, session)
+        assert video.sha256 == sha256
+        assert video.movie is None
+
+        video = Video.create_or_update_video(mock_file_path, sha256, session, movie=sample_movie)
+        assert video.movie == sample_movie
 
 def test_glossary_hits(session, sample_movie):
     glossary = Glossary(jap_text="test term", sch_text="测试")
@@ -277,58 +400,3 @@ def test_actor_movie_link(session, sample_movie):
 
     assert actor in sample_movie.actors
     assert sample_movie in actor.movies
-
-
-def test_video_stage_dictionary_mapping(session, sample_movie):
-    video = Video(
-        sha256="a" * 64,
-        filename="test.mp4",
-        absolute_path="/tmp/test.mp4",
-        suffix="mp4",
-        movie=sample_movie,
-    )
-
-    # 1. 测试通过字典 key 添加状态
-    stage_transcribe = VideoStageStatus(
-        stage_name="transcribe", status=StageStatus.SUCCESS.value
-    )
-    video.stages["transcribe"] = stage_transcribe
-
-    session.add(video)
-    session.commit()
-
-    # 2. 验证是否可以通过 key 读取
-    saved_video = session.scalar(select(Video).where(Video.filename == "test.mp4"))
-    assert "transcribe" in saved_video.stages
-    assert saved_video.stages["transcribe"].status == StageStatus.SUCCESS.value
-
-    # 3. 测试级联删除 (delete-orphan)
-    # 从字典中移除，应该导致数据库行被删除
-    del saved_video.stages["transcribe"]
-    session.commit()
-
-    # 验证数据库中确实没了
-    count = session.query(VideoStageStatus).count()
-    assert count == 0
-
-
-def test_video_stage_unique_constraint(session, sample_movie):
-    """确保同一个视频的同一个阶段不能有两条记录"""
-    video = Video(
-        sha256="b" * 64,
-        filename="t2.mp4",
-        absolute_path="/t",
-        suffix="mp4",
-        movie=sample_movie,
-    )
-    session.add(video)
-    session.commit()
-
-    # 手动添加两条冲突记录 (绕过 ORM 字典覆盖机制，直接测数据库约束)
-    s1 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="PENDING")
-    s2 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="FAILED")
-
-    session.add_all([s1, s2])
-    with pytest.raises(IntegrityError):
-        session.commit()
-    session.rollback()

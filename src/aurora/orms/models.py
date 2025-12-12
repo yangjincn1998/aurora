@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone, date
+from pathlib import Path
 from typing import Literal
 
 from sqlalchemy import (
@@ -13,6 +14,7 @@ from sqlalchemy import (
     Table,
     Column,
     event,
+    select,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import (
@@ -22,10 +24,12 @@ from sqlalchemy.orm import (
     relationship,
     attribute_mapped_collection,
     validates,
+    Session,
 )
 
 from aurora.constants import VIDEO_SUFFIXES
 from aurora.domain.enums import StageStatus
+from aurora.utils.file_utils import validate_sha256
 
 convention = {
     "ix": "ix_%(column_0_label)s",
@@ -168,6 +172,45 @@ class Movie(Base, TimestampMixin):
     actors: Mapped[list["Actor"]] = relationship(secondary=act_in)
     categories: Mapped[list["Category"]] = relationship(secondary=is_a_movie_of)
 
+    @classmethod
+    def find_anonymous_movie(cls, sha256, session: Session) -> "Movie|None":
+        return session.scalar(
+            select(cls).where(cls.label == cls.ANONYMOUS_LABEL, cls.number == sha256)
+        )
+
+    @classmethod
+    def find_standard_movie(
+            cls, label: str, number: str, session: Session
+    ) -> "Movie|None":
+        return session.scalar(
+            select(cls).where(cls.label == label, cls.number == number)
+        )
+
+    @classmethod
+    def get_or_create_standard_movie(
+            cls, label: str, number: str, session: Session
+    ) -> "Movie":
+        movie = cls.find_standard_movie(label, number, session)
+        if not movie:
+            movie = Movie(
+                number=number,
+                label=label,
+            )
+            session.add(movie)
+            session.commit()
+        return movie
+
+    @classmethod
+    def get_or_create_anonymous_movie(cls, sha256: str, session: Session) -> "Movie":
+        movie = cls.find_anonymous_movie(sha256, session)
+        if not movie:
+            movie = Movie(
+                number=sha256,
+            )
+            session.add(movie)
+            session.commit()
+        return movie
+
     @property
     def code(self) -> str:
         return f"{self.label}-{self.number}"
@@ -184,7 +227,7 @@ class Movie(Base, TimestampMixin):
 
     @validates("number")
     def validate_number(self, key, value: str):
-        is_sha256 = len(value) == 64
+        is_sha256 = validate_sha256(value)
         is_digit = value.isdigit()
 
         if not is_digit and not is_sha256:
@@ -275,9 +318,39 @@ class Video(Base, TimestampMixin):
         cascade="all, delete-orphan",
     )
 
+    def update_video_absolute_path(self, absolute_path: Path, session: Session):
+        self.absolute_path = str(absolute_path)
+        self.filename = absolute_path.stem
+        self.suffix = absolute_path.suffix.lstrip(".")
+        session.add(self)
+        session.commit()
+
+    @classmethod
+    def create_or_update_video(
+            cls, file_path: Path, sha256: str, session: Session, movie=None
+    ) -> "Video":
+        video = session.scalar(select(cls).where(cls.sha256 == sha256))
+        if not video:
+            video = Video(
+                absolute_path=str(file_path),
+                sha256=sha256,
+                filename=file_path.stem,
+                suffix=file_path.suffix.lstrip("."),
+            )
+        video.update_video_absolute_path(file_path, session)
+        video.movie = movie
+        session.add(video)
+        session.commit()
+        return video
+
+    @classmethod
+    def find_video_by_sha256(cls, sha256: str, session: Session) -> "Video|None":
+        stmt = select(cls).where(cls.sha256 == sha256)
+        return session.scalar(stmt)
+
     @validates("sha256")
     def validate_sha256(self, key, value: str):
-        if len(value) != 64 or not all(c in "0123456789abcdefABCDEF" for c in value):
+        if not validate_sha256(value):
             raise ValueError("SHA256 must be a 64-character hexadecimal string.")
         return value.lower()
 

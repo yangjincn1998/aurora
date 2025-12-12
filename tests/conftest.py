@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from aurora.orms.models import Base
-from aurora.services.code_extract.extractor import CodeExtractor
 
 
 @pytest.fixture(scope="session")
@@ -28,6 +27,6 @@ def session(engine):
     Base.metadata.drop_all(engine)
 
 
-@pytest.fixture(scope="function")
-def mock_extractor(mocker):
-    return mocker.Mock(spec=CodeExtractor)
+@pytest.fixture
+def sha256():
+    return "1234567890abcdef" * 4
