@@ -40,8 +40,8 @@ class LibraryScanner:
                 if video.movie:
                     scanned_movies.add(video.movie)
 
-            except FileNotFoundError or IOError:
-                logger.exception(f"Error scanning file %s, skipping it...", file_path)
+            except (FileNotFoundError, IOError):
+                logger.exception("Error scanning file %s, skipping it...", file_path)
                 continue
 
         # 提交所有更改
@@ -55,7 +55,7 @@ class LibraryScanner:
         for root_dir, _, files in os.walk(root):
             for file in files:
                 path = Path(root_dir) / file
-                if path.suffix.lower() in VIDEO_SUFFIXES:
+                if path.suffix.lstrip(".").lower() in VIDEO_SUFFIXES:
                     yield path
 
     def _sync_video_to_db(self, file_path: Path, file_hash: str) -> Video:
@@ -87,29 +87,3 @@ class LibraryScanner:
             movie = Movie.get_or_create_standard_movie(label, number, self.session)
             video = Video.create_or_update_video(file_path, file_hash, self.session, movie)
         return video
-
-    def _get_or_create_movie(
-        self, av_code: str | None, file_hash: str, filename: str
-    ) -> Movie:
-        """根据番号查找电影，如果不存在则创建（处理匿名逻辑）"""
-
-        if av_code:
-            label, number = av_code
-            movie = Movie.find_standard_movie(label, number, self.session)
-
-            if not movie:
-                movie = Movie(
-                    label=label,
-                    number=number,
-                )
-                self.session.add(movie)
-        else:
-            movie = Movie.find_anonymous_movie(file_hash, self.session)
-
-            if not movie:
-                movie = Movie(
-                    number=file_hash,
-                )
-                self.session.add(movie)
-
-        return movie

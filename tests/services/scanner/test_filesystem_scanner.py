@@ -12,6 +12,11 @@ def mock_extractor(mocker):
 
 
 @pytest.fixture
+def mock_validator(mocker):
+    return mocker.patch("aurora.orms.models.validate_sha256", return_value=True)
+
+
+@pytest.fixture
 def mock_hasher(mocker):
     return mocker.patch("aurora.services.scanner.filesystem_scanner.sample_and_calculate_sha256")
 
@@ -58,7 +63,8 @@ class TestLibraryScanner:
         assert video.suffix == "mp4"
         assert video.absolute_path == str(video_file)
 
-    def test_scan_existing_video_unchanged(self, scanner, mock_extractor, mock_hasher, session, tmp_path):
+    def test_scan_existing_video_unchanged(self, scanner, mock_validator, mock_extractor, mock_hasher, session,
+                                           tmp_path, mocker):
         """
         测试：视频已存在且路径未变
         预期：不进行任何数据库写操作 (Idempotency)
@@ -93,7 +99,7 @@ class TestLibraryScanner:
         current_video = session.scalar(select(Video).where(Video.sha256 == "hash_exist"))
         assert current_video.absolute_path == str(tmp_path / "ABC-123.mp4")
 
-    def test_scan_existing_video_moved(self, scanner, mock_hasher, session, tmp_path):
+    def test_scan_existing_video_moved(self, scanner, mock_validator, mock_hasher, session, tmp_path):
         """
         测试：视频哈希存在，但文件路径变了
         预期：更新数据库中的路径
@@ -104,6 +110,7 @@ class TestLibraryScanner:
         video = Video(
             sha256="hash_move",
             filename="old_name",
+            suffix="mp4",
             absolute_path=str(old_path),
             movie=movie
         )
