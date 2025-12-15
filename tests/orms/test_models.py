@@ -17,7 +17,7 @@ from src.aurora.orms.models import (
     Director,
     Studio,
 )
-from src.aurora.orms.models import VideoStageStatus
+from src.aurora.orms.models import EntityStageStatus
 
 
 @pytest.fixture
@@ -216,8 +216,8 @@ class TestVideo:
         session.commit()
 
         # 手动添加两条冲突记录 (绕过 ORM 字典覆盖机制，直接测数据库约束)
-        s1 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="PENDING")
-        s2 = VideoStageStatus(video_id=video.id, stage_name="ocr", status="FAILED")
+        s1 = EntityStageStatus(video_id=video.id, stage_name="ocr", status="PENDING")
+        s2 = EntityStageStatus(video_id=video.id, stage_name="ocr", status="FAILED")
 
         session.add_all([s1, s2])
         with pytest.raises(IntegrityError):
@@ -234,8 +234,8 @@ class TestVideo:
         )
 
         # 1. 测试通过字典 key 添加状态
-        stage_transcribe = VideoStageStatus(
-            stage_name="transcribe", status=StageStatus.SUCCESS.value
+        stage_transcribe = EntityStageStatus(
+            entity_type="video", stage_name="transcribe", status=StageStatus.SUCCESS.value
         )
         video.stages["transcribe"] = stage_transcribe
 
@@ -253,7 +253,7 @@ class TestVideo:
         session.commit()
 
         # 验证数据库中确实没了
-        count = session.query(VideoStageStatus).count()
+        count = session.query(EntityStageStatus).count()
         assert count == 0
 
     def test_update_video_absolute_path(self, session, sample_video):
@@ -407,12 +407,12 @@ def test_actor_movie_link(session, sample_movie):
 
 def test_create_pending_stage_for_video(session, sample_video):
     stage_name = "stage 1"
-    VideoStageStatus.create_or_update_stage_for_video(
+    EntityStageStatus.create_or_update_stage(
         sample_video, stage_name, StageStatus.PENDING, session
     )
     session.refresh(sample_video)
     assert sample_video.stages.get(stage_name).status == StageStatus.PENDING.value
-    VideoStageStatus.create_or_update_stage_for_video(
+    EntityStageStatus.create_or_update_stage(
         sample_video, stage_name, StageStatus.SUCCESS, session
     )
     session.refresh(sample_video)

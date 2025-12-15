@@ -2,7 +2,7 @@ from pathlib import Path
 
 from aurora.domain.enums import StageStatus
 from aurora.domain.pipeline import PipelineContext
-from aurora.orms.models import Movie, Video, VideoStageStatus
+from aurora.orms.models import Movie, Video, EntityStageStatus
 from aurora.services.scanner.filesystem_scanner import LibraryScanner
 from aurora.services.stages.base import PipelineStage
 from aurora.utils.logger import get_logger
@@ -90,7 +90,7 @@ class Pipeline:
                     Path(stage_info.by_product_path).unlink(missing_ok=True)
 
                 # 更新数据库状态
-                VideoStageStatus.create_or_update_stage_for_video(
+                EntityStageStatus.create_or_update_stage(
                     video, stage.name, StageStatus.PENDING, self.context.session
                 )
 

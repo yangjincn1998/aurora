@@ -14,7 +14,7 @@ from sqlalchemy import (
     Table,
     Column,
     event,
-    select,
+    select, CheckConstraint,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import (
@@ -171,6 +171,12 @@ class Movie(Base, TimestampMixin):
     studio: Mapped["Studio"] = relationship(back_populates="movies")
     actors: Mapped[list["Actor"]] = relationship(secondary=act_in)
     categories: Mapped[list["Category"]] = relationship(secondary=is_a_movie_of)
+    stages: Mapped[dict[str, "EntityStageStatus"]] = relationship(
+        "EntityStageStatus",
+        primaryjoin="and_(EntityStageStatus.movie_id==Movie.id, EntityStageStatus.entity_type=='movie')",
+        collection_class=attribute_mapped_collection("stage_name"),
+        cascade="all, delete-orphan",
+    )
 
     @classmethod
     def find_anonymous_movie(cls, sha256, session: Session) -> "Movie|None":
@@ -312,8 +318,9 @@ class Video(Base, TimestampMixin):
     absolute_path: Mapped[str] = mapped_column(String, nullable=False)
 
     movie: Mapped["Movie"] = relationship(back_populates="videos")
-    stages: Mapped[dict[str, "VideoStageStatus"]] = relationship(
-        "VideoStageStatus",
+    stages: Mapped[dict[str, "EntityStageStatus"]] = relationship(
+        "EntityStageStatus",
+        primaryjoin="and_(EntityStageStatus.video_id==Video.id, EntityStageStatus.entity_type=='video')",
         collection_class=attribute_mapped_collection("stage_name"),
         cascade="all, delete-orphan",
     )
@@ -364,11 +371,18 @@ class Video(Base, TimestampMixin):
         return value.lower()
 
 
-class VideoStageStatus(Base, TimestampMixin):
-    __tablename__ = "video_stage_statuses"
+class EntityStageStatus(Base, TimestampMixin):
+    __tablename__ = "entity_stage_statuses"
     __table_args__ = (
         UniqueConstraint(
             "video_id", "stage_name", name="uq_video_stage_statuses_video_stage"
+        ),
+        UniqueConstraint(
+            "movie_id", "stage_name", name="uq_video_stage_statuses_movie_stage"
+        ),
+        CheckConstraint(
+            "(video_id IS NOT NULL AND movie_id IS NULL) OR (video_id IS NULL AND movie_id IS NOT NULL)",
+            name="chk_entity_stage_one_fk"
         ),
     )
 
@@ -376,32 +390,50 @@ class VideoStageStatus(Base, TimestampMixin):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     video_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("videos.id")
+        Uuid(as_uuid=True), ForeignKey("videos.id"), nullable=True
     )
+    movie_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("movies.id"), nullable=True
+    )
+    entity_type: Mapped[Literal["movie", "video"]] = mapped_column(String, nullable=False)
     stage_name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=StageStatus.PENDING.value
     )
     by_product_path: Mapped[str] = mapped_column(String, nullable=True)
 
+    @validates("entity_id")
+    def validate_entity_id(self, key, value: str):
+        if value not in {"movie", "video"}:
+            raise ValueError(f"Unsupported entity id: {value}")
+
     @classmethod
-    def create_or_update_stage_for_video(
-            cls, video: Video, stage_name, status: StageStatus, session: Session
+    def create_or_update_stage(
+            cls, entity: Video | Movie, stage_name, status: StageStatus, session: Session
     ):
-        origin_video_stage = session.scalar(
-            select(cls).where(cls.video_id == video.id, cls.stage_name == stage_name)
-        )
-        if origin_video_stage:
-            session.delete(origin_video_stage)
+        is_video = isinstance(entity, Video)
+        entity_type = "video" if is_video else "movie"
+
+        if is_video:
+            stmt = select(cls).where(cls.video_id == entity.id, cls.stage_name == stage_name)
+        else:
+            stmt = select(cls).where(cls.movie_id == entity.id, cls.stage_name == stage_name)
+
+        existing_stage = session.scalar(stmt)
+        if existing_stage:
+            session.delete(existing_stage)
             session.commit()
-        video_stage = cls(
-            video_id=video.id,
+
+        new_stage = cls(
+            entity_type=entity_type,
             stage_name=stage_name,
             status=status.value,
+            video_id=entity.id if is_video else None,
+            movie_id=entity.id if not is_video else None,
         )
-        session.add(video_stage)
+        session.add(new_stage)
         session.commit()
-        return video_stage
+        return new_stage
 
 
 class Term(Base, TimestampMixin):

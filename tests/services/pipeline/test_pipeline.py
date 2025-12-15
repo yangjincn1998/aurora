@@ -5,7 +5,7 @@ import pytest
 
 from aurora.domain.enums import StageStatus
 from aurora.domain.pipeline import PipelineContext
-from aurora.orms.models import VideoStageStatus
+from aurora.orms.models import EntityStageStatus
 from aurora.services.pipeline.pipeline import Pipeline
 from aurora.services.scanner.filesystem_scanner import LibraryScanner
 from aurora.services.stages.base import PipelineStage
@@ -49,7 +49,8 @@ def local_sample_video(session, sample_video, tmp_path, pipeline):
     for stage in stage_names:
         (by_product_dir / stage).touch()
     for stage in ["stage1", "stage2", "stage3", "stage4"]:
-        sample_video.stages[stage] = VideoStageStatus(
+        sample_video.stages[stage] = EntityStageStatus(
+            entity_type="video",
             stage_name=stage,
             by_product_path=str(by_product_dir / stage),
             status=StageStatus.SUCCESS.value,
