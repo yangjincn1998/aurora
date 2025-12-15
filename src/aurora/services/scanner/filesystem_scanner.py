@@ -58,6 +58,14 @@ class LibraryScanner:
                 if path.suffix.lstrip(".").lower() in VIDEO_SUFFIXES:
                     yield path
 
+    def _sync_video_path(self, file_path: Path, video: Video):
+        if video.absolute_path != str(file_path):
+            logger.info("Video moved: %s -> %s", video.filename, file_path.name)
+            video.update_video_absolute_path(file_path, self.session)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            logger.debug("Video exists and unchanged: %s", file_path.name)
+
     def _sync_video_to_db(self, file_path: Path, file_hash: str) -> Video:
         """
         将单个视频文件同步到数据库。
@@ -71,13 +79,7 @@ class LibraryScanner:
         video = Video.find_video_by_sha256(file_hash, self.session)
 
         if video:
-            # === Case 1: 视频已存在 (可能是移动了位置) ===
-            if video.absolute_path != str(file_path):
-                logger.info("Video moved: %s -> %s", video.filename, file_path.name)
-                video.update_video_absolute_path(file_path, self.session)
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-            else:
-                logger.debug("Video exists and unchanged: %s", file_path.name)
+            self._sync_video_path(file_path, video)
         else:
             # === Case 2: 全新视频 ===
             logger.info("New video detected: %s", file_path.name)
@@ -85,5 +87,7 @@ class LibraryScanner:
 
             # 查找或创建 Movie
             movie = Movie.get_or_create_standard_movie(label, number, self.session)
-            video = Video.create_or_update_video(file_path, file_hash, self.session, movie)
+            video = Video.create_or_update_video(
+                file_path, file_hash, self.session, movie
+            )
         return video

@@ -280,8 +280,11 @@ class TestVideo:
         assert video.sha256 == sha256
         assert video.movie is None
 
-        video = Video.create_or_update_video(mock_file_path, sha256, session, movie=sample_movie)
+        video = Video.create_or_update_video(
+            mock_file_path, sha256, session, movie=sample_movie
+        )
         assert video.movie == sample_movie
+
 
 def test_glossary_hits(session, sample_movie):
     glossary = Glossary(jap_text="test term", sch_text="测试")
@@ -400,3 +403,17 @@ def test_actor_movie_link(session, sample_movie):
 
     assert actor in sample_movie.actors
     assert sample_movie in actor.movies
+
+
+def test_create_pending_stage_for_video(session, sample_video):
+    stage_name = "stage 1"
+    VideoStageStatus.create_or_update_stage_for_video(
+        sample_video, stage_name, StageStatus.PENDING, session
+    )
+    session.refresh(sample_video)
+    assert sample_video.stages.get(stage_name).status == StageStatus.PENDING.value
+    VideoStageStatus.create_or_update_stage_for_video(
+        sample_video, stage_name, StageStatus.SUCCESS, session
+    )
+    session.refresh(sample_video)
+    assert sample_video.stages.get(stage_name).status == StageStatus.SUCCESS.value

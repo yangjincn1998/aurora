@@ -384,6 +384,25 @@ class VideoStageStatus(Base, TimestampMixin):
     )
     by_product_path: Mapped[str] = mapped_column(String, nullable=True)
 
+    @classmethod
+    def create_or_update_stage_for_video(
+            cls, video: Video, stage_name, status: StageStatus, session: Session
+    ):
+        origin_video_stage = session.scalar(
+            select(cls).where(cls.video_id == video.id, cls.stage_name == stage_name)
+        )
+        if origin_video_stage:
+            session.delete(origin_video_stage)
+            session.commit()
+        video_stage = cls(
+            video_id=video.id,
+            stage_name=stage_name,
+            status=status.value,
+        )
+        session.add(video_stage)
+        session.commit()
+        return video_stage
+
 
 class Term(Base, TimestampMixin):
     __tablename__ = "terms"

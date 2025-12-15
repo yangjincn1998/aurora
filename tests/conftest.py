@@ -3,7 +3,7 @@ import sqlalchemy.pool
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from aurora.orms.models import Base
+from aurora.orms.models import Base, Video
 
 
 @pytest.fixture(scope="session")
@@ -30,3 +30,21 @@ def session(engine):
 @pytest.fixture
 def sha256():
     return "1234567890abcdef" * 4
+
+
+@pytest.fixture
+def sample_video(session, sha256, tmp_path):
+    tmp_file = tmp_path / "videos" / "sample_video.mp4"
+    tmp_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file.touch()
+    video = Video(
+        sha256=sha256,
+        absolute_path=str(tmp_file.absolute()),
+        filename="sample_video",
+        suffix="mp4",
+    )
+    session.add(video)
+    session.commit()
+    yield video
+    session.delete(video)
+    session.commit()

@@ -18,7 +18,10 @@ def mock_validator(mocker):
 
 @pytest.fixture
 def mock_hasher(mocker):
-    return mocker.patch("aurora.services.scanner.filesystem_scanner.sample_and_calculate_sha256")
+    return mocker.patch(
+        "aurora.services.scanner.filesystem_scanner.sample_and_calculate_sha256"
+    )
+
 
 @pytest.fixture
 def scanner(session, mock_extractor):
@@ -33,7 +36,9 @@ class TestLibraryScanner:
             scanner.scan_directory(str(non_existent_dir))
         assert str(non_existent_dir) in str(exc_info.value)
 
-    def test_scan_new_video_standard(self, sha256, scanner, mock_extractor, mock_hasher, session, tmp_path):
+    def test_scan_new_video_standard(
+            self, sha256, scanner, mock_extractor, mock_hasher, session, tmp_path
+    ):
         """
         测试：扫描一个全新的、标准番号视频
         流程: 文件 -> 哈希 -> 提取番号 -> 创建 Movie -> 创建 Video
@@ -52,7 +57,9 @@ class TestLibraryScanner:
         assert result[0].code == "ABC-123"
 
         # 验证数据库状态
-        movie = session.scalar(select(Movie).where(Movie.label == "ABC", Movie.number == "123"))
+        movie = session.scalar(
+            select(Movie).where(Movie.label == "ABC", Movie.number == "123")
+        )
         assert movie is not None
 
         # 验证Video
@@ -63,8 +70,16 @@ class TestLibraryScanner:
         assert video.suffix == "mp4"
         assert video.absolute_path == str(video_file)
 
-    def test_scan_existing_video_unchanged(self, scanner, mock_validator, mock_extractor, mock_hasher, session,
-                                           tmp_path, mocker):
+    def test_scan_existing_video_unchanged(
+            self,
+            scanner,
+            mock_validator,
+            mock_extractor,
+            mock_hasher,
+            session,
+            tmp_path,
+            mocker,
+    ):
         """
         测试：视频已存在且路径未变
         预期：不进行任何数据库写操作 (Idempotency)
@@ -76,7 +91,7 @@ class TestLibraryScanner:
             filename="ABC-123",
             suffix="mp4",
             absolute_path=str(tmp_path / "ABC-123.mp4"),
-            movie=movie
+            movie=movie,
         )
         session.add_all([movie, video])
         session.commit()
@@ -96,10 +111,14 @@ class TestLibraryScanner:
         # 验证 Extractor 未被调用 (这也是一种优化验证)
         mock_extractor.extract_av_code.assert_not_called()
         # 验证 Video 记录没有变动
-        current_video = session.scalar(select(Video).where(Video.sha256 == "hash_exist"))
+        current_video = session.scalar(
+            select(Video).where(Video.sha256 == "hash_exist")
+        )
         assert current_video.absolute_path == str(tmp_path / "ABC-123.mp4")
 
-    def test_scan_existing_video_moved(self, scanner, mock_validator, mock_hasher, session, tmp_path):
+    def test_scan_existing_video_moved(
+            self, scanner, mock_validator, mock_hasher, session, tmp_path
+    ):
         """
         测试：视频哈希存在，但文件路径变了
         预期：更新数据库中的路径
@@ -112,7 +131,7 @@ class TestLibraryScanner:
             filename="old_name",
             suffix="mp4",
             absolute_path=str(old_path),
-            movie=movie
+            movie=movie,
         )
         session.add_all([movie, video])
         session.commit()

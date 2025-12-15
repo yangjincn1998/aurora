@@ -56,11 +56,13 @@ class StageStatus(Enum):
 
     Attributes:
         SUCCESS: 执行成功。
-        FAILED: 执行失败。
+        SKIPPED: 执行失败，但是可以跳过这个阶段。
+        FAILED: 执行失败，且无法执行后续步骤。
         PENDING: 待执行。
     """
 
     SUCCESS = "success"
+    SKIPPED = "skipped"
     FAILED = "failed"
     PENDING = "pending"
 
