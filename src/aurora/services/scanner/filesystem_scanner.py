@@ -17,12 +17,17 @@ class LibraryScanner:
     def __init__(
             self,
             session: Session,
-            code_extractor: VideoInfoExtractor,
+            extractor: VideoInfoExtractor,
     ):
         self.session = session
-        self.extractor = code_extractor
+        self.extractor = extractor
 
     def scan_directory(self, root_path: Path) -> List[Movie]:
+        if not root_path.exists():
+            raise FileNotFoundError("File not found: %s", str(root_path))
+        if not root_path.is_dir():
+            raise ValueError("Not a directory: %s", str(root_path))
+
         try:
             video_files = iterate_videos(root_path)
         except (FileNotFoundError, IOError) as e:
@@ -36,9 +41,7 @@ class LibraryScanner:
                 label, number, movie_info = self.extractor.extract_video_metadata(
                     file_path.name
                 )
-                video = self._sync_video_to_db(
-                    file_path, file_hash, label, number
-                )
+                video = self._sync_video_to_db(file_path, file_hash, label, number)
                 if movie_info and video.movie:
                     scanned_movies.add(video.movie)
                     # 每一次提取都有可能提取到上次没有提取到的信息，故而选择对每次提取结果都更新
@@ -80,6 +83,7 @@ class LibraryScanner:
         video = Video.find_video_by_sha256(file_hash, self.session)
 
         if video:
+            logger.info("Video exists: %s", file_path)
             self._sync_video_path(file_path, video)
         else:
             # === Case 2: 全新视频 ===
@@ -100,22 +104,27 @@ class LibraryScanner:
         # 实现增量更新
 
         # 处理演员
-        for actor in movie_info.actors:
+        new_actors = []
+        for actor_data in movie_info.actors:
             actor = Actor.create_or_get_actor(
-                actor.current_name, actor.all_names, "male", self.session
+                actor_data.current_name, actor_data.all_names, "male", self.session
             )
-            movie.actors.append(actor)
-            self.session.add(actor)
+            new_actors.append(actor)
         for actress in movie_info.actresses:
             actress = Actor.create_or_get_actor(
                 actress.current_name, actress.all_names, "female", self.session
             )
-            movie.actors.append(actress)
-            self.session.add(actress)
+            new_actors.append(actress)
+
         # 处理品类
-        for category in movie_info.categories:
-            category = Category.get_or_create_category(category, self.session)
-            movie.categories.append(category)
+        new_categories = []
+        for category_name in movie_info.categories:
+            category = Category.get_or_create_category(category_name, self.session)
+            new_categories.append(category)
+
+        movie.actors = new_actors
+        movie.categories = new_categories
+
         # 处理其他字段
         if movie_info.title:
             movie.title_ja = movie_info.title
@@ -126,11 +135,12 @@ class LibraryScanner:
                 movie_info.director, self.session
             )
         if movie_info.producer:
-            movie.studio = Studio.get_or_create_studio(movie_info.producer, self.session)
+            movie.studio = Studio.get_or_create_studio(
+                movie_info.producer, self.session
+            )
         # 目前的 JavBus 还没有提取简介的功能
         # movie.synopsis_zh = movie_info.synopsis_zh
 
         self.session.add(movie)
         self.session.commit()
-        self.session.refresh(movie)
         return movie

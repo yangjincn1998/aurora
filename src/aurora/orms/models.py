@@ -120,12 +120,28 @@ class Actor(Base, TimestampMixin):
     ):
         actor = session.scalar(select(cls).where(cls.current_name == current_name))
         if not actor:
-            actor = Actor(current_name=current_name)
+            stmt = (
+                select(cls)
+                .join(cls.names)
+                .where(ActorName.jap_text.in_(all_names))
+                .limit(1)
+            )
+            actor = session.scalar(stmt)
+        is_new = False
+        if not actor:
+            actor = Actor(current_name=current_name, gender=gender)
+            session.add(actor)
+            session.flush()
+            is_new = True
+        else:
+            if actor.gender != gender:
+                pass
+            if actor.current_name != current_name:
+                actor.current_name = current_name
         for name in all_names:
             ActorName.create_or_get_actor_name(name, actor.id, session)
-        actor.gender = gender
-        session.add(actor)
-        session.commit()
+        if not is_new:
+            session.expire(actor, ["names"])
         return actor
 
 
@@ -153,7 +169,6 @@ class ActorName(Base, TimestampMixin):
         if not actor_name:
             actor_name = ActorName(jap_text=name, actor_id=actor_id)
         session.add(actor_name)
-        session.commit()
         return actor_name
 
 
@@ -197,8 +212,10 @@ class Movie(Base, TimestampMixin):
     )
     director: Mapped["Director"] = relationship(back_populates="movies")
     studio: Mapped["Studio"] = relationship(back_populates="movies")
-    actors: Mapped[list["Actor"]] = relationship(secondary=act_in)
-    categories: Mapped[list["Category"]] = relationship(secondary=is_a_movie_of)
+    actors: Mapped[list["Actor"]] = relationship(secondary=act_in, overlaps="movies")
+    categories: Mapped[list["Category"]] = relationship(
+        secondary=is_a_movie_of, overlaps="movies"
+    )
     stages: Mapped[dict[str, "EntityStageStatus"]] = relationship(
         "EntityStageStatus",
         primaryjoin="and_(EntityStageStatus.movie_id==Movie.id, EntityStageStatus.entity_type=='movie')",
@@ -231,7 +248,6 @@ class Movie(Base, TimestampMixin):
                 label=label,
             )
             session.add(movie)
-            session.commit()
         return movie
 
     @classmethod
@@ -242,7 +258,6 @@ class Movie(Base, TimestampMixin):
                 number=sha256,
             )
             session.add(movie)
-            session.commit()
         return movie
 
     @property
@@ -305,11 +320,10 @@ class Category(Base, TimestampMixin):
 
     @classmethod
     def get_or_create_category(cls, jap_text, session: Session):
-        category = session.scalar(select(cls).where(jap_text == jap_text))
+        category = session.scalar(select(cls).where(cls.jap_text == jap_text))
         if not category:
             category = Category(jap_text=jap_text)
         session.add(category)
-        session.commit()
         return category
 
 
@@ -330,7 +344,6 @@ class Director(Base, TimestampMixin):
         if not director:
             director = Director(jap_text=jap_text)
         session.add(director)
-        session.commit()
         return director
 
 
@@ -351,7 +364,6 @@ class Studio(Base, TimestampMixin):
         if not studio:
             studio = Studio(jap_text=jap_text)
         session.add(studio)
-        session.commit()
         return studio
 
 
@@ -384,7 +396,6 @@ class Video(Base, TimestampMixin):
         self.filename = absolute_path.stem
         self.suffix = absolute_path.suffix.lstrip(".")
         session.add(self)
-        session.commit()
 
     @classmethod
     def create_or_update_video(
@@ -398,10 +409,9 @@ class Video(Base, TimestampMixin):
                 filename=file_path.stem,
                 suffix=file_path.suffix.lstrip("."),
             )
-        video.update_video_absolute_path(file_path, session)
+            session.add(video)
         video.movie = movie
-        session.add(video)
-        session.commit()
+        video.update_video_absolute_path(file_path, session)
         return video
 
     @classmethod
@@ -482,8 +492,7 @@ class EntityStageStatus(Base, TimestampMixin):
         existing_stage = session.scalar(stmt)
         if existing_stage:
             session.delete(existing_stage)
-            session.commit()
-
+            session.flush()
         new_stage = cls(
             entity_type=entity_type,
             stage_name=stage_name,
@@ -492,7 +501,6 @@ class EntityStageStatus(Base, TimestampMixin):
             movie_id=entity.id if not is_video else None,
         )
         session.add(new_stage)
-        session.commit()
         return new_stage
 
 

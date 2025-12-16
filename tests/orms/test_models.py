@@ -133,6 +133,7 @@ class TestMovie:
         number = "123"
 
         movie = Movie.get_or_create_standard_movie(label, number, session)
+        session.commit()
         assert movie is not None
         assert movie.code == "ABC-123"
         session.delete(movie)
@@ -146,6 +147,7 @@ class TestMovie:
 
     def test_get_or_create_anonymous_movie(self, session, sha256, sample_video):
         movie = Movie.get_or_create_anonymous_movie(sha256, session)
+        session.commit()
         assert movie.is_anonymous
         session.delete(movie)
         session.commit()
@@ -156,6 +158,7 @@ class TestMovie:
         session.commit()
 
         movie = Movie.get_or_create_anonymous_movie(sha256, session)
+        session.commit()
         assert movie.is_anonymous
         assert sample_video in movie.videos
 
@@ -412,10 +415,153 @@ def test_create_pending_stage_for_video(session, sample_video):
     EntityStageStatus.create_or_update_stage(
         sample_video, stage_name, StageStatus.PENDING, session
     )
-    session.refresh(sample_video)
+    session.commit()
     assert sample_video.stages.get(stage_name).status == StageStatus.PENDING.value
     EntityStageStatus.create_or_update_stage(
         sample_video, stage_name, StageStatus.SUCCESS, session
     )
-    session.refresh(sample_video)
+    session.commit()
     assert sample_video.stages.get(stage_name).status == StageStatus.SUCCESS.value
+
+
+def test_create_pending_stage_for_movie(session, sample_movie):
+    """测试为Movie创建阶段状态"""
+    stage_name = "metadata_extraction"
+    EntityStageStatus.create_or_update_stage(
+        sample_movie, stage_name, StageStatus.PENDING, session
+    )
+    session.commit()
+    assert sample_movie.stages.get(stage_name).status == StageStatus.PENDING.value
+    EntityStageStatus.create_or_update_stage(
+        sample_movie, stage_name, StageStatus.SUCCESS, session
+    )
+    session.commit()
+    assert sample_movie.stages.get(stage_name).status == StageStatus.SUCCESS.value
+
+
+def test_movie_stage_dictionary_mapping(session, sample_movie):
+    """测试Movie阶段状态的字典映射访问"""
+    # 1. 测试通过字典key添加状态
+    stage_metadata = EntityStageStatus(
+        entity_type="movie",
+        stage_name="metadata",
+        status=StageStatus.SUCCESS.value,
+    )
+    sample_movie.stages["metadata"] = stage_metadata
+
+    session.add(sample_movie)
+    session.commit()
+
+    # 2. 验证是否可以通过key读取
+    saved_movie = session.scalar(select(Movie).where(Movie.id == sample_movie.id))
+    assert "metadata" in saved_movie.stages
+    assert saved_movie.stages["metadata"].status == StageStatus.SUCCESS.value
+
+    # 3. 测试级联删除 (delete-orphan)
+    # 从字典中移除，应该导致数据库行被删除
+    del saved_movie.stages["metadata"]
+    session.commit()
+
+    # 验证数据库中确实没了
+    count = session.query(EntityStageStatus).count()
+    assert count == 0
+
+
+def test_movie_stage_unique_constraint(session, sample_movie):
+    """确保同一个Movie的同一个阶段不能有两条记录"""
+    # 手动添加两条冲突记录 (绕过ORM字典覆盖机制，直接测数据库约束)
+    s1 = EntityStageStatus(
+        movie_id=sample_movie.id, stage_name="transcode", status="PENDING"
+    )
+    s2 = EntityStageStatus(
+        movie_id=sample_movie.id, stage_name="transcode", status="FAILED"
+    )
+
+    session.add_all([s1, s2])
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+
+def test_movie_video_stage_independence(session, sample_movie):
+    """测试Movie和Video的阶段状态相互独立"""
+    # 创建一个video并关联到movie
+    video = Video(
+        sha256="a" * 64,
+        filename="test.mp4",
+        absolute_path="/tmp/test.mp4",
+        suffix="mp4",
+        movie=sample_movie,
+    )
+    session.add(video)
+    session.commit()
+
+    # 为movie和video分别创建相同名称的阶段状态
+    movie_stage = EntityStageStatus(
+        entity_type="movie",
+        stage_name="processing",
+        status=StageStatus.PENDING.value,
+        movie_id=sample_movie.id,
+    )
+
+    video_stage = EntityStageStatus(
+        entity_type="video",
+        stage_name="processing",
+        status=StageStatus.SUCCESS.value,
+        video_id=video.id,
+    )
+
+    session.add_all([movie_stage, video_stage])
+    session.commit()
+
+    # 验证两个阶段状态都正确保存
+    session.refresh(sample_movie)
+    session.refresh(video)
+
+    assert sample_movie.stages["processing"].status == StageStatus.PENDING.value
+    assert video.stages["processing"].status == StageStatus.SUCCESS.value
+    assert sample_movie.stages["processing"].id != video.stages["processing"].id
+
+
+def test_movie_stage_status_enum_values(session, sample_movie):
+    """测试所有StageStatus枚举值都能正确保存"""
+    stage_name = "test_stage"
+
+    # 测试所有状态值
+    for status in StageStatus:
+        EntityStageStatus.create_or_update_stage(
+            sample_movie, stage_name, status, session
+        )
+        session.commit()
+        assert sample_movie.stages[stage_name].status == status.value
+
+
+def test_create_actor_with_updated_name_info(session):
+    actor_v1 = Actor.create_or_get_actor(
+        "old_pseudonym", ["old_pseudonym", "further_pseudonym"], "female", session
+    )
+    session.commit()  # 要不要加呢？实际情况一般是上次更换艺名很久后才会有下一次搜索
+    actor_v2 = Actor.create_or_get_actor(
+        "new_pseudonym", ["further_pseudonym"], "female", session
+    )
+    session.commit()
+
+    assert actor_v1.id == actor_v2.id
+    assert actor_v2.current_name == "new_pseudonym"
+    assert "old_pseudonym" in [n.jap_text for n in actor_v2.names]
+    assert "further_pseudonym" in [n.jap_text for n in actor_v2.names]
+
+
+def test_create_actor_with_updated_name_info_diff_gender(session):
+    acto_f = Actor.create_or_get_actor(
+        "old_pseudonym", ["old_pseudonym", "further_pseudonym"], "female", session
+    )
+    session.commit()
+    actor_m = Actor.create_or_get_actor(
+        "new_pseudonym", ["further_pseudonym"], "male", session
+    )
+
+    assert actor_m.id != acto_f.id
+    assert actor_m.current_name == "new_pseudonym"
+    assert "old_pseudonym" not in [n.jap_text for n in actor_m.names]
+    assert "further_pseudonym" in [n.jap_text for n in actor_m.names]
