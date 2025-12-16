@@ -235,7 +235,9 @@ class TestVideo:
 
         # 1. 测试通过字典 key 添加状态
         stage_transcribe = EntityStageStatus(
-            entity_type="video", stage_name="transcribe", status=StageStatus.SUCCESS.value
+            entity_type="video",
+            stage_name="transcribe",
+            status=StageStatus.SUCCESS.value,
         )
         video.stages["transcribe"] = stage_transcribe
 

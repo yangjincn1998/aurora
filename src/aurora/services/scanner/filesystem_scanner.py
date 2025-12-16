@@ -1,12 +1,12 @@
-import os
 from pathlib import Path
-from typing import List, Iterator
+from typing import List
 
+from aurora_scraper.extractor.extractor import VideoInfoExtractor
+from aurora_scraper.models import JavMovie
+from aurora_scraper.utils.video_iterate_utils import iterate_videos
 from sqlalchemy.orm import Session
 
-from aurora.constants import VIDEO_SUFFIXES
-from aurora.orms.models import Movie, Video
-from aurora.services.code_extract.extractor import CodeExtractor
+from aurora.orms.models import Movie, Video, Actor, Director, Studio, Category
 from aurora.utils.file_utils import sample_and_calculate_sha256
 from aurora.utils.logger import get_logger
 
@@ -14,49 +14,42 @@ logger = get_logger(__name__)
 
 
 class LibraryScanner:
-    def __init__(self, session: Session, code_extractor: CodeExtractor):
+    def __init__(
+            self,
+            session: Session,
+            code_extractor: VideoInfoExtractor,
+    ):
         self.session = session
         self.extractor = code_extractor
 
-    def scan_directory(self, root_path: str) -> List[Movie]:
-        """
-        扫描目录，将新发现的视频同步到数据库，并返回所有相关的 Movie 对象。
-        """
-        root = Path(root_path)
-        if not root.exists():
-            raise FileNotFoundError(f"Path not found: {root_path}")
+    def scan_directory(self, root_path: Path) -> List[Movie]:
+        try:
+            video_files = iterate_videos(root_path)
+        except (FileNotFoundError, IOError) as e:
+            logger.exception("Error scanning directory: %s", root_path)
+            raise e
 
         scanned_movies = set()
-
-        # 1. 遍历文件系统
-        for file_path in self._walk_video_files(root):
+        for file_path in video_files:
             try:
-                # 2. 采样计算指纹 (SHA256)
                 file_hash = sample_and_calculate_sha256(str(file_path))
-                # 3. 核心逻辑：Check or Create (Upsert)
-                video = self._sync_video_to_db(file_path, file_hash)
-
-                # 收集涉及到的 Movie 对象，用于后续 Pipeline 处理
-                if video.movie:
+                label, number, movie_info = self.extractor.extract_video_metadata(
+                    file_path.name
+                )
+                video = self._sync_video_to_db(
+                    file_path, file_hash, label, number
+                )
+                if movie_info and video.movie:
                     scanned_movies.add(video.movie)
-
+                    # 每一次提取都有可能提取到上次没有提取到的信息，故而选择对每次提取结果都更新
+                    self._update_movie_info(video.movie, movie_info)
+                # 更新 extractor 的label以实现自学习
+                if label:
+                    self.extractor.learn_label(label)
             except (FileNotFoundError, IOError):
-                logger.exception("Error scanning file %s, skipping it...", file_path)
+                logger.exception("Failed to process video: %s", str(file_path))
                 continue
-
-        # 提交所有更改
-        self.session.commit()
-
         return list(scanned_movies)
-
-    @staticmethod
-    def _walk_video_files(root: Path) -> Iterator[Path]:
-        """迭代器：递归查找视频文件"""
-        for root_dir, _, files in os.walk(root):
-            for file in files:
-                path = Path(root_dir) / file
-                if path.suffix.lstrip(".").lower() in VIDEO_SUFFIXES:
-                    yield path
 
     def _sync_video_path(self, file_path: Path, video: Video):
         if video.absolute_path != str(file_path):
@@ -66,7 +59,13 @@ class LibraryScanner:
         else:
             logger.debug("Video exists and unchanged: %s", file_path.name)
 
-    def _sync_video_to_db(self, file_path: Path, file_hash: str) -> Video:
+    def _sync_video_to_db(
+            self,
+            file_path: Path,
+            file_hash: str,
+            label: str | None,
+            number: str | None,
+    ) -> Video:
         """
         将单个视频文件同步到数据库。
         - 如果哈希存在：更新路径（处理移动/重命名）。
@@ -74,6 +73,8 @@ class LibraryScanner:
         Args:
             file_path: 绝对路径
             file_hash: 文件的 hash 值
+            label: 提取出的番号标签
+            number: 提取出的番号数字部分
         """
         # A. 检查数据库中是否存在该视频 (根据内容哈希)
         video = Video.find_video_by_sha256(file_hash, self.session)
@@ -83,11 +84,53 @@ class LibraryScanner:
         else:
             # === Case 2: 全新视频 ===
             logger.info("New video detected: %s", file_path.name)
-            label, number = self.extractor.extract_av_code(file_path.name)
-
             # 查找或创建 Movie
-            movie = Movie.get_or_create_standard_movie(label, number, self.session)
+            if not label or not number:
+                movie = Movie.get_or_create_anonymous_movie(file_hash, self.session)
+            else:
+                movie = Movie.get_or_create_standard_movie(label, number, self.session)
             video = Video.create_or_update_video(
                 file_path, file_hash, self.session, movie
             )
         return video
+
+    def _update_movie_info(self, movie: Movie, movie_info: JavMovie):
+        if movie is None:
+            raise ValueError("Movie is None")
+        # 实现增量更新
+
+        # 处理演员
+        for actor in movie_info.actors:
+            actor = Actor.create_or_get_actor(
+                actor.current_name, actor.all_names, "male", self.session
+            )
+            movie.actors.append(actor)
+            self.session.add(actor)
+        for actress in movie_info.actresses:
+            actress = Actor.create_or_get_actor(
+                actress.current_name, actress.all_names, "female", self.session
+            )
+            movie.actors.append(actress)
+            self.session.add(actress)
+        # 处理品类
+        for category in movie_info.categories:
+            category = Category.get_or_create_category(category, self.session)
+            movie.categories.append(category)
+        # 处理其他字段
+        if movie_info.title:
+            movie.title_ja = movie_info.title
+        if movie_info.release_date:
+            movie.release_date = movie_info.release_date
+        if movie_info.director:
+            movie.director = Director.get_or_create_director(
+                movie_info.director, self.session
+            )
+        if movie_info.producer:
+            movie.studio = Studio.get_or_create_studio(movie_info.producer, self.session)
+        # 目前的 JavBus 还没有提取简介的功能
+        # movie.synopsis_zh = movie_info.synopsis_zh
+
+        self.session.add(movie)
+        self.session.commit()
+        self.session.refresh(movie)
+        return movie

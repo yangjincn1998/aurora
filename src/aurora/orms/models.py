@@ -14,7 +14,8 @@ from sqlalchemy import (
     Table,
     Column,
     event,
-    select, CheckConstraint,
+    select,
+    CheckConstraint,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import (
@@ -109,6 +110,24 @@ class Actor(Base, TimestampMixin):
     movies: Mapped[list["Movie"]] = relationship(secondary=act_in)
     videos = association_proxy("movies", "videos")
 
+    @classmethod
+    def create_or_get_actor(
+            cls,
+            current_name: str,
+            all_names: list[str],
+            gender: Literal["female", "male"],
+            session: Session,
+    ):
+        actor = session.scalar(select(cls).where(cls.current_name == current_name))
+        if not actor:
+            actor = Actor(current_name=current_name)
+        for name in all_names:
+            ActorName.create_or_get_actor_name(name, actor.id, session)
+        actor.gender = gender
+        session.add(actor)
+        session.commit()
+        return actor
+
 
 class ActorName(Base, TimestampMixin):
     __tablename__ = "actor_names"
@@ -127,6 +146,15 @@ class ActorName(Base, TimestampMixin):
     sch_text: Mapped[str] = mapped_column(String, nullable=True)
 
     actor: Mapped["Actor"] = relationship(back_populates="names")
+
+    @classmethod
+    def create_or_get_actor_name(cls, name: str, actor_id: uuid.UUID, session: Session):
+        actor_name = session.scalar(select(cls).where(cls.jap_text == name))
+        if not actor_name:
+            actor_name = ActorName(jap_text=name, actor_id=actor_id)
+        session.add(actor_name)
+        session.commit()
+        return actor_name
 
 
 class Movie(Base, TimestampMixin):
@@ -275,6 +303,15 @@ class Category(Base, TimestampMixin):
     movies: Mapped[list["Movie"]] = relationship(secondary=is_a_movie_of)
     videos = association_proxy("movies", "videos")
 
+    @classmethod
+    def get_or_create_category(cls, jap_text, session: Session):
+        category = session.scalar(select(cls).where(jap_text == jap_text))
+        if not category:
+            category = Category(jap_text=jap_text)
+        session.add(category)
+        session.commit()
+        return category
+
 
 class Director(Base, TimestampMixin):
     __tablename__ = "directors"
@@ -287,6 +324,15 @@ class Director(Base, TimestampMixin):
 
     movies: Mapped[list["Movie"]] = relationship(back_populates="director")
 
+    @classmethod
+    def get_or_create_director(cls, jap_text, session: Session) -> "Director":
+        director = session.scalar(select(cls).where(cls.jap_text == jap_text))
+        if not director:
+            director = Director(jap_text=jap_text)
+        session.add(director)
+        session.commit()
+        return director
+
 
 class Studio(Base, TimestampMixin):
     __tablename__ = "studios"
@@ -298,7 +344,15 @@ class Studio(Base, TimestampMixin):
     sch_text: Mapped[str | None] = mapped_column(String, nullable=True)
 
     movies: Mapped[list["Movie"]] = relationship(back_populates="studio")
-    videos = association_proxy("movies", "videos")
+
+    @classmethod
+    def get_or_create_studio(cls, jap_text, session: Session) -> "Studio":
+        studio = session.scalar(select(cls).where(cls.jap_text == jap_text))
+        if not studio:
+            studio = Studio(jap_text=jap_text)
+        session.add(studio)
+        session.commit()
+        return studio
 
 
 class Video(Base, TimestampMixin):
@@ -382,7 +436,7 @@ class EntityStageStatus(Base, TimestampMixin):
         ),
         CheckConstraint(
             "(video_id IS NOT NULL AND movie_id IS NULL) OR (video_id IS NULL AND movie_id IS NOT NULL)",
-            name="chk_entity_stage_one_fk"
+            name="chk_entity_stage_one_fk",
         ),
     )
 
@@ -395,7 +449,9 @@ class EntityStageStatus(Base, TimestampMixin):
     movie_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("movies.id"), nullable=True
     )
-    entity_type: Mapped[Literal["movie", "video"]] = mapped_column(String, nullable=False)
+    entity_type: Mapped[Literal["movie", "video"]] = mapped_column(
+        String, nullable=False
+    )
     stage_name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=StageStatus.PENDING.value
@@ -415,9 +471,13 @@ class EntityStageStatus(Base, TimestampMixin):
         entity_type = "video" if is_video else "movie"
 
         if is_video:
-            stmt = select(cls).where(cls.video_id == entity.id, cls.stage_name == stage_name)
+            stmt = select(cls).where(
+                cls.video_id == entity.id, cls.stage_name == stage_name
+            )
         else:
-            stmt = select(cls).where(cls.movie_id == entity.id, cls.stage_name == stage_name)
+            stmt = select(cls).where(
+                cls.movie_id == entity.id, cls.stage_name == stage_name
+            )
 
         existing_stage = session.scalar(stmt)
         if existing_stage:

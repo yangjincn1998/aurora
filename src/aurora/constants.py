@@ -7,9 +7,13 @@ VIDEO_SUFFIXES = frozenset(
         "wmv",
         "flv",
         "webm",
-        "mpg",
+        "m4v",
         "mpeg",
+        "mpg",
+        "m2ts",
+        "ts",
+        "vob",
+        "rmvb",
         "3gp",
-        "iso",
     }
 )

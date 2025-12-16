@@ -8,6 +8,7 @@ dependencies = [
   "aurora-scraper",
   "bs4>=0.0.2",
   "cloudscraper>=1.2.71",
+  "datetime>=6.0",
   "demucs>=4.0.1",
   "noisereduce>=3.0.3",
   "openai>=2.9.0",
