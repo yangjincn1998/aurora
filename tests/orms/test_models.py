@@ -542,7 +542,7 @@ def test_create_actor_with_updated_name_info(session):
     )
     session.commit()  # 要不要加呢？实际情况一般是上次更换艺名很久后才会有下一次搜索
     actor_v2 = Actor.create_or_get_actor(
-        "new_pseudonym", ["further_pseudonym"], "female", session
+        "new_pseudonym", ["new_pseudonym", "further_pseudonym"], "female", session
     )
     session.commit()
 
@@ -552,16 +552,23 @@ def test_create_actor_with_updated_name_info(session):
     assert "further_pseudonym" in [n.jap_text for n in actor_v2.names]
 
 
-def test_create_actor_with_updated_name_info_diff_gender(session):
-    acto_f = Actor.create_or_get_actor(
-        "old_pseudonym", ["old_pseudonym", "further_pseudonym"], "female", session
+def test_adaptive_create_actor_with_updated_name_info(session):
+    actor_v1 = Actor.create_or_get_actor(
+        "new_pseudonym",
+        ["new_pseudonym", "old_pseudonym", "further_pseudonym"],
+        "female",
+        session,
     )
     session.commit()
-    actor_m = Actor.create_or_get_actor(
-        "new_pseudonym", ["further_pseudonym"], "male", session
+    actor_v2 = Actor.create_or_get_actor(
+        "old_pseudonym",
+        ["old_pseudonym"],
+        "female",
+        session,  # 假设网站忘了维护这条信息
     )
+    session.commit()
 
-    assert actor_m.id != acto_f.id
-    assert actor_m.current_name == "new_pseudonym"
-    assert "old_pseudonym" not in [n.jap_text for n in actor_m.names]
-    assert "further_pseudonym" in [n.jap_text for n in actor_m.names]
+    assert actor_v1.id == actor_v2.id
+    assert actor_v2.current_name == "new_pseudonym"
+    assert "old_pseudonym" in [n.jap_text for n in actor_v2.names]
+    assert "further_pseudonym" in [n.jap_text for n in actor_v2.names]

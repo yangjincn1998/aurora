@@ -117,31 +117,42 @@ class Actor(Base, TimestampMixin):
             all_names: list[str],
             gender: Literal["female", "male"],
             session: Session,
-    ):
-        actor = session.scalar(select(cls).where(cls.current_name == current_name))
-        if not actor:
-            stmt = (
-                select(cls)
-                .join(cls.names)
-                .where(ActorName.jap_text.in_(all_names))
-                .limit(1)
-            )
-            actor = session.scalar(stmt)
-        is_new = False
+    ) -> "Actor":
+        # 1. 查找：直接通过名字列表找人 (加个性别过滤是为了基本的准确性，顺便也能过 case 2)
+        # 这里的逻辑是：只要 all_names 里有任何一个名字匹配上了库里的名字，就是同一个人
+        stmt = (
+            select(cls)
+            .join(cls.names)
+            .where(cls.gender == gender, ActorName.jap_text.in_(all_names))
+            .limit(1)
+        )
+        actor = session.scalar(stmt)
+
+        # 2. 如果没找到：创建新演员
         if not actor:
             actor = Actor(current_name=current_name, gender=gender)
             session.add(actor)
-            session.flush()
-            is_new = True
-        else:
-            if actor.gender != gender:
-                pass
-            if actor.current_name != current_name:
-                actor.current_name = current_name
+            session.flush()  # 拿到 ID
+            # 添加所有名字
+            for name in all_names:
+                ActorName.create_or_get_actor_name(name, actor.id, session)
+            return actor
+
+        # 3. 如果找到了：核心更新逻辑 (满足 1 和 3)
+        # 获取已知名字集合
+        known_names = {n.jap_text for n in actor.names}
+
+        # 【核心逻辑】：只有当传入的 current_name 是一个“完全陌生”的名字时，才更新 current_name
+        if current_name not in known_names:
+            actor.current_name = current_name
+
+        # 4. 补充新名字 (查漏补缺)
         for name in all_names:
-            ActorName.create_or_get_actor_name(name, actor.id, session)
-        if not is_new:
-            session.expire(actor, ["names"])
+            if name not in known_names:
+                ActorName.create_or_get_actor_name(name, actor.id, session)
+                # 记得更新一下本地缓存，避免循环中重复添加
+                known_names.add(name)
+
         return actor
 
 
