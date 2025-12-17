@@ -201,6 +201,9 @@ class Movie(Base, TimestampMixin):
     studio_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("studios.id"), nullable=True
     )
+    series_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("series.id"), nullable=True
+    )
 
     synopsis_ja: Mapped[str] = mapped_column(String, nullable=True)
     synopsis_zh: Mapped[str] = mapped_column(String, nullable=True)
@@ -222,6 +225,7 @@ class Movie(Base, TimestampMixin):
         collection_class=attribute_mapped_collection("stage_name"),
         cascade="all, delete-orphan",
     )
+    series: Mapped["Series"] = relationship(back_populates="movies")
 
     @classmethod
     def find_anonymous_movie(cls, sha256, session: Session) -> "Movie|None":
@@ -535,3 +539,25 @@ class Glossary(Base, TimestampMixin):
     hit_movies: Mapped[list["Movie"]] = relationship(
         back_populates="glossaries", secondary="glossary_hits_in"
     )
+
+
+class Series(Base, TimestampMixin):
+    __tablename__ = "series"
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    jap_text: Mapped[str] = mapped_column(String, nullable=False)
+    sch_text: Mapped[str] = mapped_column(String, nullable=True)
+
+    movies: Mapped[list["Movie"]] = relationship(back_populates="series")
+
+    @classmethod
+    def get_or_create_series(cls, series_text: str, session: Session):
+        series = session.scalar(select(cls).where(cls.jap_text == series_text))
+        if not series:
+            series = Series(
+                jap_text=series_text,
+            )
+        session.add(series)
+        return series

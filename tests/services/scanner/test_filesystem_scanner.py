@@ -15,6 +15,7 @@ def mock_movie_info():
     # 注意：新的scanner即使视频已存在也会调用extractor
     # 设置extractor返回正确的值
     movie_info = Mock(spec=JavMovie)
+    movie_info.series = None
     movie_info.title = None
     movie_info.release_date = None
     movie_info.director = None
@@ -72,6 +73,7 @@ class TestLibraryScanner:
         # 创建一个完整的Mock JavMovie对象
         movie_info = Mock(spec=JavMovie)
         movie_info.title = "Test Movie"
+        movie_info.series = "Test Series"
         movie_info.release_date = None
         movie_info.director = None
         movie_info.producer = None
@@ -145,8 +147,6 @@ class TestLibraryScanner:
         # 5. 验证
         # 注意：由于movie_info为None，movie不会被添加到scanned_movies集合
         # 所以results可能为空，但数据库记录应该存在
-        # 验证 Extractor 被正确调用
-        mock_extractor.extract_video_metadata.assert_called_once_with("ABC-123.mp4")
         # 验证 Video 记录没有变动
         current_video = session.scalar(
             select(Video).where(Video.sha256 == "hash_exist")
@@ -250,6 +250,7 @@ class TestLibraryScanner:
         ]
         movie_info.actresses = [Mock(current_name="Actress1", all_names=["Actress1"])]
         movie_info.categories = ["Drama", "Romance"]
+        movie_info.series = None
 
         mock_extractor.extract_video_metadata.return_value = ("ABC", "123", movie_info)
 
@@ -340,3 +341,52 @@ class TestLibraryScanner:
         # 验证数据库记录
         assert session.query(Video).count() == 3
         assert session.query(Movie).count() == 3
+
+    def test_extract_video_metadata_only_once(
+            self,
+            sha256,
+            mock_movie_info,
+            mock_hasher,
+            scanner,
+            mock_extractor,
+            session,
+            tmp_path,
+    ):
+        path = tmp_path / "ABC-123.mp4"
+        path.touch()
+        mock_extractor.extract_video_metadata.return_value = (
+            "ABC",
+            "123",
+            mock_movie_info,
+        )
+        mock_hasher.return_value = sha256
+
+        scanner.scan_directory(tmp_path)
+        scanner.scan_directory(tmp_path)
+
+        mock_extractor.extract_video_metadata.assert_called_once()
+
+    def test_data_persistence(
+            self,
+            tmp_path,
+            mock_extractor,
+            mock_movie_info,
+            mock_hasher,
+            sha256,
+            scanner,
+            session,
+    ):
+        path = tmp_path / "ABC-123.mp4"
+        path.touch()
+        mock_extractor.extract_video_metadata.return_value = (
+            "ABC",
+            "123",
+            mock_movie_info,
+        )
+        mock_hasher.return_value = sha256
+
+        scanner.scan_directory(tmp_path)
+
+        saved = Video.find_video_by_sha256(sha256, session)
+        assert saved.movie.label == "ABC"
+        assert saved.movie.number == "123"
