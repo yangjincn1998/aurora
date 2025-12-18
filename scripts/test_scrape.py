@@ -11,7 +11,7 @@ dotenv.load_dotenv()
 
 scraper = ScrapeStage([JavBusWebService()])
 database_manager = DatabaseManager()
-translator = TranslateOrchestrator.from_config_yaml("../config.yml")
+translator = TranslateOrchestrator.from_config_yaml("../config.yaml")
 pipeline_context = PipelineContext(database_manager, translator, "bban", "tests")
 
 

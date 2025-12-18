@@ -1,0 +1,77 @@
+x-definitions:
+  deepseek_provider: &deepseek_provider
+    service: openai
+    model: deepseek-chat
+    api_key: ENV_DEEPSEEK_API_KEY
+    base_url: ENV_DEEPSEEK_BASE_URL
+
+  openrouter_glm_provider: &openrouter_glm_provider
+    service: openai
+    model: z-ai/glm-4.6
+    api_key: ENV_OPENROUTER_API_KEY
+    base_url: ENV_OPENROUTER_BASE_URL
+
+  openrouter_gemini_provider: &openrouter_gemini_provider
+    service: openai
+    model: google/gemini-2.5-pro
+    api_key: ENV_OPENROUTER_API_KEY
+    base_url: ENV_OPENROUTER_BASE_URL
+
+
+translate_orchestrator:
+  stream_models:
+    - deepseek-chat
+    - google/gemini-2.5-pro
+  task:
+    director:
+      providers:
+        - *deepseek_provider
+      stream: True
+      temperature: 0.7
+    actor:
+      providers:
+        - *deepseek_provider
+
+      category:
+        providers:
+          - *deepseek_provider
+
+      studio:
+        providers:
+          - *deepseek_provider
+
+      title:
+        providers:
+          - *openrouter_glm_provider
+
+      synopsis:
+        providers:
+          - *openrouter_glm_provider
+
+      subtitle:
+        providers:
+          - *openrouter_gemini_provider
+        strategy:
+          slice_enabled: True
+          slice_size: 550
+
+      correct:
+        provider:
+          - *openrouter_gemini_provider
+        strategy:
+          slice_enabled: True
+          slice_size: 300
+
+transcriber:
+  type: whisper
+  config:
+    model_size: "large-v3"
+    device: "cuda"
+    compute_type: "float16"
+
+  quality_checker:
+    provider:
+      service: openai
+      model: "z-ai/glm-4.6"
+      api_key: "ENV_OPENROUTER_API_KEY"
+      base_url: "ENV_OPENROUTER_BASE_URL"

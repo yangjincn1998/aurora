@@ -23,8 +23,8 @@ dotenv.load_dotenv()
 
 def main():
     denoiser = Denoiser.from_yaml_config("config.yaml")
-    transcriber = TranscriptionService.from_yaml("../../config.yml")
-    translator = TranslateOrchestrator.from_config_yaml("../../config.yml")
+    transcriber = TranscriptionService.from_yaml("../../config.yaml")
+    translator = TranslateOrchestrator.from_config_yaml("../../config.yaml")
 
     # 创建降噪器实例
     denoise_config = {

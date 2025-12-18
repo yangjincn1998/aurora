@@ -1,5 +1,6 @@
 import pytest
 import sqlalchemy.pool
+import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -48,3 +49,10 @@ def sample_video(session, sha256, tmp_path):
     yield video
     session.delete(video)
     session.commit()
+
+
+@pytest.fixture
+def example_config_yaml_loader():
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    return config
