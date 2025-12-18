@@ -1,0 +1,18 @@
+{
+{
+"command": "请为我校正这份srt字幕",
+"movie_info": {
+"source": "这部影片的来源是一部日本成人电影",
+"metadata": {{ metadata | tojson(indent=2) }},
+"terms": {{ terms | tojson(indent=2) }}
+},
+"instruction": "{{ instruction }}",
+"srt_block": "{{ srt_block }}",
+
+{# 动态控制可选字段 #}
+{% if show_diff %}
+    "additional": "展示改动内容和原因"
+{% else %}
+    "additional": null
+{% endif %}
+}

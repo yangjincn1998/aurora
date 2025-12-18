@@ -11,6 +11,7 @@ dependencies = [
   "cloudscraper>=1.2.71",
   "datetime>=6.0",
   "demucs>=4.0.1",
+  "jinja2>=3.1.6",
   "noisereduce>=3.0.3",
   "openai>=2.9.0",
   "openai-whisper>=20250625",
